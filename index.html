@@ -8,6 +8,8 @@
     <link href="https://cdnjs.cloudflare.com/ajax/libs/tailwindcss/2.2.19/tailwind.min.css" rel="stylesheet">
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jsbarcode/3.11.5/JsBarcode.all.min.js"></script>
     
+    <script src="https://accounts.google.com/gsi/client" onload="initGIS()" async defer></script>
+    
     <style>
         @media print {
             body * { visibility: hidden; }
@@ -16,11 +18,7 @@
             .no-print { display: none !important; }
             @page { size: A4; margin: 0.75cm; }
             .label-grid { display: flex; flex-wrap: wrap; gap: 0.2cm; align-content: flex-start; }
-            .label-item { 
-                border: 1px dashed #999; 
-                display: flex; flex-direction: column; align-items: center; justify-content: space-between;
-                page-break-inside: avoid; overflow: hidden; box-sizing: border-box; padding: 2px;
-            }
+            .label-item { border: 1px dashed #999; display: flex; flex-direction: column; align-items: center; justify-content: space-between; page-break-inside: avoid; overflow: hidden; box-sizing: border-box; padding: 2px; }
             .label-name { font-size: 11px; font-family: sans-serif; font-weight: bold; text-align: center; width: 100%; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
         }
         #scanner-input { opacity: 0; position: absolute; z-index: -1; }
@@ -34,14 +32,8 @@
             <h1 class="text-3xl font-bold text-blue-900 mb-2">StockManager Pro</h1>
             <p class="text-gray-500 mb-6 text-sm">Please log in to continue</p>
             <div class="space-y-4 text-left">
-                <div>
-                    <label class="block text-sm font-bold text-gray-700">Username</label>
-                    <input type="text" id="login-user" class="w-full border p-2 rounded outline-none focus:border-blue-500">
-                </div>
-                <div>
-                    <label class="block text-sm font-bold text-gray-700">Password</label>
-                    <input type="password" id="login-pass" class="w-full border p-2 rounded outline-none focus:border-blue-500" onkeypress="handleLoginEnter(event)">
-                </div>
+                <div><label class="block text-sm font-bold text-gray-700">Username</label><input type="text" id="login-user" class="w-full border p-2 rounded outline-none focus:border-blue-500"></div>
+                <div><label class="block text-sm font-bold text-gray-700">Password</label><input type="password" id="login-pass" class="w-full border p-2 rounded outline-none focus:border-blue-500" onkeypress="handleLoginEnter(event)"></div>
                 <button onclick="attemptLogin()" class="w-full bg-blue-600 text-white font-bold py-2 rounded hover:bg-blue-700">Log In</button>
                 <p id="login-error" class="text-red-500 text-sm hidden text-center mt-2"></p>
             </div>
@@ -51,10 +43,7 @@
     <div id="app-wrapper" class="hidden">
         
         <nav class="bg-blue-800 text-white p-4 shadow-md flex justify-between items-center no-print">
-            <div class="flex items-center">
-                <h1 class="text-xl font-bold">StockManager</h1>
-                <span id="nav-user-badge" class="bg-blue-600 px-2 py-1 rounded text-xs font-mono ml-3"></span>
-            </div>
+            <div class="flex items-center"><h1 class="text-xl font-bold">StockManager</h1><span id="nav-user-badge" class="bg-blue-600 px-2 py-1 rounded text-xs font-mono ml-3"></span></div>
             <div class="space-x-4 flex items-center text-sm font-semibold">
                 <button onclick="switchView('dashboard')" class="hover:text-blue-200">Dashboard</button>
                 <button onclick="switchView('scan')" class="hover:text-blue-200">Scan In/Out</button>
@@ -71,14 +60,8 @@
             <div id="view-dashboard" class="view-section">
                 <h2 class="text-2xl font-bold mb-4">Stock Dashboard</h2>
                 <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
-                    <div class="bg-red-50 border-l-4 border-red-500 p-4 shadow-sm">
-                        <h3 class="font-bold text-red-700">Urgent: Order Today</h3>
-                        <ul id="urgent-list" class="mt-2 text-sm text-red-600 list-disc pl-5"></ul>
-                    </div>
-                    <div class="bg-yellow-50 border-l-4 border-yellow-500 p-4 shadow-sm">
-                        <h3 class="font-bold text-yellow-700">Low Stock Warning</h3>
-                        <ul id="low-stock-list" class="mt-2 text-sm text-yellow-600 list-disc pl-5"></ul>
-                    </div>
+                    <div class="bg-red-50 border-l-4 border-red-500 p-4 shadow-sm"><h3 class="font-bold text-red-700">Urgent: Order Today</h3><ul id="urgent-list" class="mt-2 text-sm text-red-600 list-disc pl-5"></ul></div>
+                    <div class="bg-yellow-50 border-l-4 border-yellow-500 p-4 shadow-sm"><h3 class="font-bold text-yellow-700">Low Stock Warning</h3><ul id="low-stock-list" class="mt-2 text-sm text-yellow-600 list-disc pl-5"></ul></div>
                 </div>
                 <div class="bg-white rounded shadow-sm overflow-x-auto">
                     <table class="w-full text-left border-collapse">
@@ -93,7 +76,6 @@
                 <div class="bg-white p-6 rounded shadow-sm max-w-md mx-auto text-center border-t-4 border-blue-500">
                     <p class="mb-4 text-gray-600 text-sm">Scan barcode to begin.</p>
                     <input type="text" id="scanner-input" onkeypress="handleScan(event)" autofocus>
-                    
                     <div id="scan-dialog" class="hidden mt-4 text-left border-t pt-4">
                         <h3 class="text-xl font-bold text-blue-800" id="scan-item-name"></h3>
                         <p class="text-sm text-gray-500 mb-4">Code: <span id="scan-item-code"></span> | Stock: <span id="scan-current-stock" class="font-bold"></span> <span id="scan-uom-display" class="text-xs"></span></p>
@@ -120,25 +102,20 @@
                         <button onclick="openPrintModal()" class="bg-purple-600 text-white px-3 py-1 rounded shadow-sm hover:bg-purple-700">Print Selected</button>
                     </div>
                 </div>
-                
                 <div class="bg-white p-4 rounded shadow-sm mb-6 border-l-4 border-blue-500">
                     <div class="grid grid-cols-2 md:grid-cols-7 gap-2">
                         <input type="text" id="new-code" placeholder="Code" class="border p-2 text-sm rounded">
                         <input type="text" id="new-name" placeholder="Item Name" class="border p-2 text-sm md:col-span-2 rounded">
-                        <input type="text" id="new-uom" placeholder="UOM (e.g. Kg)" class="border p-2 text-sm rounded">
+                        <input type="text" id="new-uom" placeholder="UOM" class="border p-2 text-sm rounded">
                         <input type="number" id="new-open" placeholder="Open Stock" class="border p-2 text-sm rounded">
                         <input type="number" id="new-min" placeholder="Min Stock" class="border p-2 text-sm rounded">
                         <input type="number" id="new-lead" placeholder="Lead (Days)" class="border p-2 text-sm rounded">
                     </div>
                     <button onclick="addItem()" class="mt-3 bg-blue-800 text-white px-4 py-2 rounded text-sm hover:bg-blue-700 shadow-sm">Save Item</button>
                 </div>
-
                 <div class="bg-white rounded shadow-sm overflow-x-auto">
                     <table class="w-full text-left border-collapse text-sm">
-                        <thead><tr class="bg-gray-200">
-                            <th class="p-2 w-10 text-center"><input type="checkbox" onclick="toggleAllCheckboxes(this)"></th>
-                            <th class="p-2">Code</th><th class="p-2">Name</th><th class="p-2">UOM</th><th class="p-2">Open Stock</th><th class="p-2">Min Level</th><th class="p-2">Lead (Days)</th><th class="p-2 text-center">Actions</th>
-                        </tr></thead>
+                        <thead><tr class="bg-gray-200"><th class="p-2 w-10 text-center"><input type="checkbox" onclick="toggleAllCheckboxes(this)"></th><th class="p-2">Code</th><th class="p-2">Name</th><th class="p-2">UOM</th><th class="p-2">Open Stock</th><th class="p-2">Min Level</th><th class="p-2">Lead (Days)</th><th class="p-2 text-center">Actions</th></tr></thead>
                         <tbody id="master-table-body"></tbody>
                     </table>
                 </div>
@@ -170,12 +147,7 @@
                         <button onclick="addUser()" class="bg-blue-800 text-white px-4 py-2 rounded hover:bg-blue-700 shadow-sm">Add</button>
                     </div>
                 </div>
-                <div class="bg-white rounded shadow-sm max-w-2xl overflow-x-auto">
-                    <table class="w-full text-left border-collapse text-sm">
-                        <thead><tr class="bg-gray-200"><th class="p-2">Username</th><th class="p-2">Role</th><th class="p-2">Password</th><th class="p-2">Actions</th></tr></thead>
-                        <tbody id="users-table-body"></tbody>
-                    </table>
-                </div>
+                <div class="bg-white rounded shadow-sm max-w-2xl overflow-x-auto"><table class="w-full text-left border-collapse text-sm"><tbody id="users-table-body"></tbody></table></div>
             </div>
 
             <div id="view-data" class="view-section hidden">
@@ -186,23 +158,37 @@
                         <h3 class="text-xl font-bold mb-4">Local File Backup</h3>
                         <p class="text-sm text-gray-600 mb-4">Download a physical JSON file to your PC as a fail-safe.</p>
                         <button onclick="exportLocalJSON()" class="w-full bg-blue-50 font-bold py-2 rounded border border-blue-200 mb-3 hover:bg-blue-100 transition text-blue-800">Export PC Backup</button>
-                        <div class="relative">
-                            <input type="file" accept=".json" class="absolute inset-0 w-full h-full opacity-0 cursor-pointer" onchange="importLocalJSON(event)">
-                            <button class="w-full bg-white font-bold py-2 rounded border border-gray-300 hover:bg-gray-50 transition text-gray-700">Import PC Backup</button>
-                        </div>
+                        <div class="relative"><input type="file" accept=".json" class="absolute inset-0 w-full h-full opacity-0 cursor-pointer" onchange="importLocalJSON(event)"><button class="w-full bg-white font-bold py-2 rounded border border-gray-300 hover:bg-gray-50 transition text-gray-700">Import PC Backup</button></div>
                     </div>
 
                     <div class="bg-white p-6 rounded shadow-sm border-t-4 border-green-500 flex flex-col justify-between">
-                        <div>
-                            <h3 class="text-xl font-bold mb-4">Google Drive Sync</h3>
-                            <button onclick="handleAuthClick()" class="w-full bg-white border border-gray-300 font-bold py-2 rounded mb-2 hover:bg-gray-50 transition text-gray-700">Login to Google</button>
+                        <div class="flex justify-between items-center mb-4">
+                            <h3 class="text-xl font-bold">Google Drive Sync</h3>
+                            <span id="gdrive-status" class="bg-gray-200 text-gray-600 px-2 py-1 rounded text-xs font-bold">Disconnected</span>
                         </div>
-                        <button onclick="handleSignoutClick()" class="w-full text-red-500 text-sm hover:underline mt-4">Disconnect</button>
+                        
+                        <div id="gdrive-logged-out">
+                            <p class="text-sm text-gray-600 mb-4">Connect to Google Drive to push or pull cloud backups.</p>
+                            <button onclick="handleAuthClick()" class="w-full bg-white border border-gray-300 font-bold py-2 rounded hover:bg-gray-50 transition text-gray-700">Login to Google</button>
+                        </div>
+
+                        <div id="gdrive-logged-in" class="hidden flex-col gap-3">
+                            <button onclick="pushToDrive(event)" class="w-full bg-green-600 text-white font-bold py-2 rounded hover:bg-green-700 transition shadow-sm">Push New Backup to Drive</button>
+                            <div class="border-t pt-3 mt-2">
+                                <div class="flex justify-between items-center mb-2">
+                                    <p class="text-xs font-bold text-gray-500 uppercase">Recent Backups (48 Hrs)</p>
+                                    <button onclick="listDriveBackups()" class="text-blue-600 hover:underline text-xs">Refresh</button>
+                                </div>
+                                <ul id="drive-backup-list" class="text-sm border rounded divide-y bg-gray-50 max-h-40 overflow-y-auto">
+                                    <li class="p-2 text-center text-gray-500 text-xs">Loading backups...</li>
+                                </ul>
+                            </div>
+                            <button onclick="handleSignoutClick()" class="w-full text-red-500 text-sm hover:underline mt-2 text-center">Disconnect Drive</button>
+                        </div>
                     </div>
 
                     <div class="bg-red-50 p-6 rounded shadow-sm border-t-4 border-red-600 md:col-span-2 mt-4">
                         <h3 class="text-xl font-bold text-red-700 mb-2">Danger Zone: System Reset</h3>
-                        <p class="text-sm text-red-600 mb-4">This will permanently delete all Items, Logs, and Users from this device. It cannot be undone without a PC Backup file.</p>
                         <button onclick="factoryReset()" class="bg-red-600 text-white font-bold py-2 px-6 rounded hover:bg-red-700 shadow-sm transition">Factory Reset Data</button>
                     </div>
 
@@ -213,29 +199,13 @@
 
     <div id="manual-log-modal" class="hidden fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center no-print z-50">
         <div class="bg-white p-6 rounded shadow-lg w-96 border-t-4 border-yellow-500">
-            <h3 class="text-xl font-bold mb-2">Manual Adjustment</h3>
-            <p class="text-xs text-gray-500 mb-4">Directly inject logs for audits or corrections.</p>
+            <h3 class="text-xl font-bold mb-4">Manual Adjustment</h3>
             <div class="space-y-3">
-                <div>
-                    <label class="block text-sm font-bold">Select Item</label>
-                    <select id="manual-item-select" class="w-full border p-2 rounded"></select>
-                </div>
-                <div>
-                    <label class="block text-sm font-bold">Type</label>
-                    <select id="manual-type-select" class="w-full border p-2 rounded bg-gray-50">
-                        <option value="IN">IN (Add Stock)</option>
-                        <option value="OUT">OUT (Remove Stock)</option>
-                    </select>
-                </div>
-                <div>
-                    <label class="block text-sm font-bold">Quantity</label>
-                    <input type="number" id="manual-qty" min="1" value="1" class="w-full border p-2 rounded font-mono">
-                </div>
+                <div><label class="block text-sm font-bold">Item</label><select id="manual-item-select" class="w-full border p-2 rounded"></select></div>
+                <div><label class="block text-sm font-bold">Type</label><select id="manual-type-select" class="w-full border p-2 rounded bg-gray-50"><option value="IN">IN (Add)</option><option value="OUT">OUT (Remove)</option></select></div>
+                <div><label class="block text-sm font-bold">Qty</label><input type="number" id="manual-qty" min="1" value="1" class="w-full border p-2 rounded font-mono"></div>
             </div>
-            <div class="mt-6 flex justify-end gap-2">
-                <button onclick="closeModal('manual-log-modal')" class="bg-gray-200 px-4 py-2 rounded hover:bg-gray-300 text-gray-800">Cancel</button>
-                <button onclick="submitManualLog()" class="bg-yellow-600 text-white px-4 py-2 rounded font-bold shadow hover:bg-yellow-700">Force Log Entry</button>
-            </div>
+            <div class="mt-6 flex justify-end gap-2"><button onclick="closeModal('manual-log-modal')" class="bg-gray-200 px-4 py-2 rounded">Cancel</button><button onclick="submitManualLog()" class="bg-yellow-600 text-white px-4 py-2 rounded font-bold">Force Entry</button></div>
         </div>
     </div>
 
@@ -243,34 +213,16 @@
         <div class="bg-white p-6 rounded shadow-lg w-96 border-t-4 border-blue-500">
             <h3 class="text-xl font-bold mb-4">Edit Item</h3>
             <div class="space-y-3">
-                <div>
-                    <label class="block text-sm font-bold text-gray-500">Code (Locked)</label>
-                    <input type="text" id="edit-code" readonly class="w-full border border-gray-200 p-2 rounded bg-gray-100 text-gray-500 cursor-not-allowed">
-                </div>
-                <div>
-                    <label class="block text-sm font-bold">Item Name</label>
-                    <input type="text" id="edit-name" class="w-full border p-2 rounded">
-                </div>
+                <div><label class="block text-sm font-bold text-gray-500">Code (Locked)</label><input type="text" id="edit-code" readonly class="w-full border p-2 rounded bg-gray-100 text-gray-500 cursor-not-allowed"></div>
+                <div><label class="block text-sm font-bold">Item Name</label><input type="text" id="edit-name" class="w-full border p-2 rounded"></div>
                 <div class="grid grid-cols-2 gap-2">
-                    <div>
-                        <label class="block text-sm font-bold">Opening Stock</label>
-                        <input type="number" id="edit-open" class="w-full border p-2 rounded">
-                    </div>
-                    <div>
-                        <label class="block text-sm font-bold">UOM</label>
-                        <input type="text" id="edit-uom" class="w-full border p-2 rounded">
-                    </div>
+                    <div><label class="block text-sm font-bold">Opening Stock</label><input type="number" id="edit-open" class="w-full border p-2 rounded"></div>
+                    <div><label class="block text-sm font-bold">UOM</label><input type="text" id="edit-uom" class="w-full border p-2 rounded"></div>
                 </div>
-                <p id="edit-open-warning" class="text-xs text-red-500 hidden bg-red-50 p-1 rounded border border-red-200">Opening Stock Locked: Logs exist.</p>
-                <div class="grid grid-cols-2 gap-2">
-                    <div><label class="block text-sm font-bold">Min Stock</label><input type="number" id="edit-min" class="w-full border p-2 rounded"></div>
-                    <div><label class="block text-sm font-bold">Lead (Days)</label><input type="number" id="edit-lead" class="w-full border p-2 rounded"></div>
-                </div>
+                <p id="edit-open-warning" class="text-xs text-red-500 hidden bg-red-50 p-1 rounded">Opening Stock Locked.</p>
+                <div class="grid grid-cols-2 gap-2"><div><label class="text-sm font-bold">Min</label><input type="number" id="edit-min" class="w-full border p-2 rounded"></div><div><label class="text-sm font-bold">Lead</label><input type="number" id="edit-lead" class="w-full border p-2 rounded"></div></div>
             </div>
-            <div class="mt-6 flex justify-end gap-2">
-                <button onclick="closeModal('edit-modal')" class="bg-gray-200 text-gray-800 px-4 py-2 rounded hover:bg-gray-300">Cancel</button>
-                <button onclick="saveEditItem()" class="bg-blue-800 text-white px-4 py-2 rounded hover:bg-blue-700 shadow">Update Details</button>
-            </div>
+            <div class="mt-6 flex justify-end gap-2"><button onclick="closeModal('edit-modal')" class="bg-gray-200 px-4 py-2 rounded">Cancel</button><button onclick="saveEditItem()" class="bg-blue-800 text-white px-4 py-2 rounded">Update</button></div>
         </div>
     </div>
 
@@ -281,17 +233,153 @@
                 <div><label class="text-sm font-bold">Width (cm)</label><input type="number" id="print-width" value="6" class="w-full border p-2 text-center"></div>
                 <div><label class="text-sm font-bold">Height (cm)</label><input type="number" id="print-height" value="2" class="w-full border p-2 text-center"></div>
             </div>
-            <div class="flex justify-end gap-2">
-                <button onclick="closeModal('print-config-modal')" class="bg-gray-200 text-gray-800 px-4 py-2 rounded hover:bg-gray-300">Cancel</button>
-                <button onclick="executePrint()" class="bg-purple-600 text-white px-4 py-2 rounded shadow hover:bg-purple-700">Generate & Print</button>
-            </div>
+            <div class="flex justify-end gap-2"><button onclick="closeModal('print-config-modal')" class="bg-gray-200 px-4 py-2 rounded">Cancel</button><button onclick="executePrint()" class="bg-purple-600 text-white px-4 py-2 rounded">Print</button></div>
         </div>
     </div>
 
     <div id="print-area" class="label-grid"></div>
 
     <script>
-        // --- DATA STATE & INITIALIZATION ---
+        /* =========================================================================
+           YOUR GOOGLE CLIENT ID GOES HERE
+           Replace 'YOUR_CLIENT_ID_HERE' with your actual Client ID.
+           Keep the single quotes around the text!
+           ========================================================================= */
+        const GOOGLE_CLIENT_ID = '344270645228-n27js5m9vctohogghuk71d7oaken60kb.apps.googleusercontent.com';
+
+        // --- GOOGLE DRIVE OAUTH & API LOGIC ---
+        let tokenClient;
+        let gAccessToken = null;
+
+        function initGIS() {
+            if (GOOGLE_CLIENT_ID === 'YOUR_CLIENT_ID_HERE') return; // Prevents crash if key not set
+            tokenClient = google.accounts.oauth2.initTokenClient({
+                client_id: GOOGLE_CLIENT_ID,
+                scope: 'https://www.googleapis.com/auth/drive.file',
+                callback: (tokenResponse) => {
+                    if (tokenResponse && tokenResponse.access_token) {
+                        gAccessToken = tokenResponse.access_token;
+                        document.getElementById('gdrive-logged-out').classList.add('hidden');
+                        document.getElementById('gdrive-logged-in').classList.remove('hidden');
+                        document.getElementById('gdrive-logged-in').classList.add('flex');
+                        document.getElementById('gdrive-status').innerText = 'Connected';
+                        document.getElementById('gdrive-status').className = 'bg-green-100 text-green-800 px-2 py-1 rounded text-xs font-bold';
+                        listDriveBackups();
+                    }
+                },
+            });
+        }
+
+        function handleAuthClick() {
+            if (GOOGLE_CLIENT_ID === 'YOUR_CLIENT_ID_HERE') {
+                return alert("You must insert your Google Client ID into the HTML code (Line ~414) to enable Cloud Sync.");
+            }
+            tokenClient.requestAccessToken({prompt: 'consent'});
+        }
+
+        function handleSignoutClick() {
+            if (gAccessToken) {
+                google.accounts.oauth2.revoke(gAccessToken, () => {
+                    gAccessToken = null;
+                    document.getElementById('gdrive-logged-in').classList.add('hidden');
+                    document.getElementById('gdrive-logged-in').classList.remove('flex');
+                    document.getElementById('gdrive-logged-out').classList.remove('hidden');
+                    document.getElementById('gdrive-status').innerText = 'Disconnected';
+                    document.getElementById('gdrive-status').className = 'bg-gray-200 text-gray-600 px-2 py-1 rounded text-xs font-bold';
+                });
+            }
+        }
+
+        async function pushToDrive(event) {
+            if (!gAccessToken) return alert("Not connected to Google Drive.");
+            
+            const btn = event.target;
+            const originalText = btn.innerText;
+            btn.innerText = "Uploading...";
+            btn.disabled = true;
+
+            const backupData = { items, logs, users };
+            const fileBlob = new Blob([JSON.stringify(backupData)], {type: 'application/json'});
+            const metadata = {
+                name: `StockBackup_${new Date().toISOString().replace(/[:.]/g, '-')}.json`,
+                mimeType: 'application/json'
+            };
+
+            const form = new FormData();
+            form.append('metadata', new Blob([JSON.stringify(metadata)], {type: 'application/json'}));
+            form.append('file', fileBlob);
+
+            try {
+                const res = await fetch('https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart', {
+                    method: 'POST',
+                    headers: { 'Authorization': 'Bearer ' + gAccessToken },
+                    body: form
+                });
+                
+                if (res.ok) {
+                    btn.innerText = "Success!";
+                    btn.classList.replace('bg-green-600', 'bg-blue-600');
+                    listDriveBackups();
+                } else {
+                    alert("Google Drive upload failed. Check console.");
+                }
+            } catch (e) { alert("Error connecting to Google Drive."); }
+
+            setTimeout(() => {
+                btn.innerText = originalText;
+                btn.classList.replace('bg-blue-600', 'bg-green-600');
+                btn.disabled = false;
+            }, 2000);
+        }
+
+        async function listDriveBackups() {
+            if (!gAccessToken) return;
+            const listEl = document.getElementById('drive-backup-list');
+            listEl.innerHTML = '<li class="p-2 text-center text-gray-500 text-xs">Loading backups...</li>';
+            
+            const pastDate = new Date(Date.now() - 48 * 60 * 60 * 1000).toISOString();
+            const query = `trashed=false and name contains 'StockBackup_' and createdTime > '${pastDate}'`;
+            
+            try {
+                const res = await fetch(`https://www.googleapis.com/drive/v3/files?q=${encodeURIComponent(query)}&orderBy=createdTime desc&fields=files(id,name,createdTime)`, {
+                    headers: { 'Authorization': 'Bearer ' + gAccessToken }
+                });
+                const data = await res.json();
+                if (data.files && data.files.length > 0) {
+                    listEl.innerHTML = data.files.map(f => `
+                        <li class="p-2 flex justify-between items-center text-xs">
+                            <span class="truncate pr-2 font-mono" title="${f.name}">${new Date(f.createdTime).toLocaleString()}</span>
+                            <button onclick="pullFromDrive('${f.id}')" class="text-blue-600 hover:text-blue-800 font-bold shrink-0 bg-blue-50 px-2 py-1 rounded border">Restore</button>
+                        </li>
+                    `).join('');
+                } else {
+                    listEl.innerHTML = '<li class="p-2 text-center text-gray-500 text-xs">No backups found in last 48 hours.</li>';
+                }
+            } catch(e) { listEl.innerHTML = '<li class="p-2 text-center text-red-500 text-xs">Failed to load backups.</li>'; }
+        }
+
+        async function pullFromDrive(fileId) {
+            if (!confirm("WARNING: This will instantly overwrite your current computer data with the selected cloud backup. Do you want to proceed?")) return;
+            if (!gAccessToken) return;
+            
+            try {
+                const res = await fetch(`https://www.googleapis.com/drive/v3/files/${fileId}?alt=media`, {
+                    headers: { 'Authorization': 'Bearer ' + gAccessToken }
+                });
+                if (res.ok) {
+                    const data = await res.json();
+                    if(data.items && data.logs && data.users) {
+                        items = data.items; logs = data.logs; users = data.users;
+                        saveData();
+                        alert("Cloud Backup Restored Successfully! Logging out for security.");
+                        logout();
+                    } else { alert("Error: Selected file is not a valid StockManager backup."); }
+                } else { alert("Failed to download file from Google Drive."); }
+            } catch(e) { alert("Error downloading from Drive."); }
+        }
+
+
+        // --- STANDARD APP LOGIC (Local Storage, UI, CSV) ---
         let items = JSON.parse(localStorage.getItem('stockItems')) || [];
         let logs = JSON.parse(localStorage.getItem('stockLogs')) || [];
         let users = JSON.parse(localStorage.getItem('stockUsers'));
@@ -301,376 +389,110 @@
             localStorage.setItem('stockUsers', JSON.stringify(users));
         }
 
-        let activeUser = null; 
-        let activeScanItem = null;
+        let activeUser = null; let activeScanItem = null;
 
-        // --- AUTHENTICATION & PERSISTENCE ---
         function checkSession() {
-            const storedSession = sessionStorage.getItem('activeStockSession');
-            if (storedSession) {
-                activeUser = JSON.parse(storedSession);
-                document.getElementById('login-screen').classList.add('hidden');
-                document.getElementById('app-wrapper').classList.remove('hidden');
-                document.getElementById('nav-user-badge').innerText = `${activeUser.name} [${activeUser.role}]`;
-                applyPermissions(); switchView('dashboard'); renderUsersTable();
-            }
+            const s = sessionStorage.getItem('activeStockSession');
+            if (s) { activeUser = JSON.parse(s); document.getElementById('login-screen').classList.add('hidden'); document.getElementById('app-wrapper').classList.remove('hidden'); document.getElementById('nav-user-badge').innerText = `${activeUser.name} [${activeUser.role}]`; applyPermissions(); switchView('dashboard'); renderUsersTable(); }
         }
 
-        function handleLoginEnter(event) { if(event.key === 'Enter') attemptLogin(); }
-
+        function handleLoginEnter(e) { if(e.key === 'Enter') attemptLogin(); }
         function attemptLogin() {
-            const u = document.getElementById('login-user').value.trim();
-            const p = document.getElementById('login-pass').value;
-            const err = document.getElementById('login-error');
-            const foundUser = users.find(user => user.name.toLowerCase() === u.toLowerCase() && user.pass === p);
-            
-            if(foundUser) {
-                activeUser = foundUser;
-                sessionStorage.setItem('activeStockSession', JSON.stringify(activeUser)); 
-                err.classList.add('hidden');
-                document.getElementById('login-screen').classList.add('hidden');
-                document.getElementById('app-wrapper').classList.remove('hidden');
-                document.getElementById('nav-user-badge').innerText = `${activeUser.name} [${activeUser.role}]`;
-                document.getElementById('login-pass').value = ''; 
-                applyPermissions(); switchView('dashboard'); renderUsersTable();
-            } else { err.innerText = "Invalid Username or Password"; err.classList.remove('hidden'); }
+            const u = document.getElementById('login-user').value.trim(); const p = document.getElementById('login-pass').value; const err = document.getElementById('login-error');
+            const user = users.find(x => x.name.toLowerCase() === u.toLowerCase() && x.pass === p);
+            if(user) { activeUser = user; sessionStorage.setItem('activeStockSession', JSON.stringify(activeUser)); err.classList.add('hidden'); document.getElementById('login-screen').classList.add('hidden'); document.getElementById('app-wrapper').classList.remove('hidden'); document.getElementById('nav-user-badge').innerText = `${activeUser.name} [${activeUser.role}]`; document.getElementById('login-pass').value = ''; applyPermissions(); switchView('dashboard'); renderUsersTable(); } else { err.innerText = "Invalid Login"; err.classList.remove('hidden'); }
         }
 
-        function logout() {
-            activeUser = null; sessionStorage.removeItem('activeStockSession'); 
-            document.getElementById('app-wrapper').classList.add('hidden');
-            document.getElementById('login-screen').classList.remove('hidden');
-        }
-
-        function applyPermissions() {
-            const adminEls = document.querySelectorAll('.admin-only');
-            if (activeUser.role === 'Staff') { adminEls.forEach(el => el.classList.add('hidden-for-staff')); } 
-            else { adminEls.forEach(el => el.classList.remove('hidden-for-staff')); }
-        }
-
-        // --- USER MANAGEMENT ---
+        function logout() { activeUser = null; sessionStorage.removeItem('activeStockSession'); document.getElementById('app-wrapper').classList.add('hidden'); document.getElementById('login-screen').classList.remove('hidden'); }
+        function applyPermissions() { document.querySelectorAll('.admin-only').forEach(el => activeUser.role === 'Staff' ? el.classList.add('hidden-for-staff') : el.classList.remove('hidden-for-staff')); }
         function addUser() {
-            const name = document.getElementById('new-user-name').value.trim();
-            const pass = document.getElementById('new-user-pass').value;
-            const role = document.getElementById('new-user-role').value;
-            if(!name || !pass) return alert("Name and password required.");
-            if(users.some(u => u.name.toLowerCase() === name.toLowerCase())) return alert("Username already exists.");
-            users.push({name, role, pass}); saveData();
-            document.getElementById('new-user-name').value = ''; document.getElementById('new-user-pass').value = '';
-            renderUsersTable();
+            const n = document.getElementById('new-user-name').value.trim(); const p = document.getElementById('new-user-pass').value; const r = document.getElementById('new-user-role').value;
+            if(!n || !p) return alert("Required fields empty."); if(users.some(u => u.name.toLowerCase() === n.toLowerCase())) return alert("Username taken.");
+            users.push({name: n, role: r, pass: p}); saveData(); document.getElementById('new-user-name').value = ''; document.getElementById('new-user-pass').value = ''; renderUsersTable();
         }
+        function renderUsersTable() { document.getElementById('users-table-body').innerHTML = users.map((u, i) => `<tr class="border-b"><td class="p-2">${u.name}</td><td class="p-2">${u.role}</td><td class="p-2 text-gray-400 font-mono text-xs">${u.pass}</td><td class="p-2"><button onclick="deleteUser(${i})" class="text-red-500 hover:underline">Delete</button></td></tr>`).join(''); }
+        function deleteUser(i) { if(users.length === 1) return alert("Cannot delete last admin."); if(users[i].name === activeUser.name) return alert("Cannot delete self."); if(confirm("Delete user?")) { users.splice(i, 1); saveData(); renderUsersTable(); } }
 
-        function renderUsersTable() {
-            document.getElementById('users-table-body').innerHTML = users.map((u, i) => `
-                <tr class="border-b hover:bg-gray-50">
-                    <td class="p-2 font-bold">${u.name}</td><td class="p-2">${u.role}</td><td class="p-2 text-gray-400 font-mono text-xs">${u.pass}</td>
-                    <td class="p-2"><button onclick="deleteUser(${i})" class="text-red-500 hover:underline text-xs font-bold">Delete</button></td>
-                </tr>`).join('');
-        }
+        function saveData() { localStorage.setItem('stockItems', JSON.stringify(items)); localStorage.setItem('stockLogs', JSON.stringify(logs)); localStorage.setItem('stockUsers', JSON.stringify(users)); if(activeUser) updateDashboard(); }
+        function calculateCurrentStock(c) { let item = items.find(i => i.code === c); if (!item) return 0; let s = parseInt(item.openStock); logs.filter(l => l.code === c).forEach(l => { if (l.type === 'IN') s += parseInt(l.qty); if (l.type === 'OUT') s -= parseInt(l.qty); }); return s; }
 
-        function deleteUser(index) {
-            if(users.length === 1) return alert("Cannot delete the last admin account.");
-            if(users[index].name === activeUser.name) return alert("Cannot delete your own active account.");
-            if(confirm("Delete user " + users[index].name + "?")) { users.splice(index, 1); saveData(); renderUsersTable(); }
-        }
-
-        // --- CORE DATA HANDLING ---
-        function saveData() {
-            localStorage.setItem('stockItems', JSON.stringify(items));
-            localStorage.setItem('stockLogs', JSON.stringify(logs));
-            localStorage.setItem('stockUsers', JSON.stringify(users));
-            if(activeUser) updateDashboard(); 
-        }
-
-        function calculateCurrentStock(itemCode) {
-            let item = items.find(i => i.code === itemCode);
-            if (!item) return 0;
-            let stock = parseInt(item.openStock);
-            logs.filter(l => l.code === itemCode).forEach(log => {
-                if (log.type === 'IN') stock += parseInt(log.qty);
-                if (log.type === 'OUT') stock -= parseInt(log.qty);
-            });
-            return stock;
-        }
-
-        // --- DASHBOARD ---
         function updateDashboard() {
-            const tbody = document.getElementById('dashboard-table-body');
-            const lowList = document.getElementById('low-stock-list');
-            const urgentList = document.getElementById('urgent-list');
-            tbody.innerHTML = ''; lowList.innerHTML = ''; urgentList.innerHTML = '';
-
-            items.forEach(item => {
-                const current = calculateCurrentStock(item.code);
-                const min = parseInt(item.minStock);
-                const isLow = current <= min;
-                const uomDisp = item.uom || '';
-                
-                tbody.innerHTML += `<tr class="border-b hover:bg-gray-50"><td class="p-3 font-mono">${item.code}</td><td class="p-3">${item.name}</td><td class="p-3 font-bold text-lg">${current} <span class="text-xs text-gray-500 font-normal">${uomDisp}</span></td><td class="p-3">${isLow ? '<span class="text-red-600 font-bold bg-red-100 px-2 rounded">LOW</span>' : '<span class="text-green-700 bg-green-100 px-2 rounded">OK</span>'}</td></tr>`;
-
-                if (isLow) {
-                    lowList.innerHTML += `<li><b>${item.name}</b> (${item.code}) - Stock: ${current} ${uomDisp} (Min: ${min})</li>`;
-                    if (parseInt(item.leadTime) > 5) {
-                        const reorderQty = Math.ceil((min * 1.2) - current);
-                        urgentList.innerHTML += `<li><b>${item.name}</b> - Required: <span class="bg-red-200 text-red-800 px-1 rounded font-bold">${reorderQty} ${uomDisp}</span></li>`;
-                    }
-                }
+            const tb = document.getElementById('dashboard-table-body'); const ll = document.getElementById('low-stock-list'); const ul = document.getElementById('urgent-list');
+            tb.innerHTML = ''; ll.innerHTML = ''; ul.innerHTML = '';
+            items.forEach(i => {
+                const cur = calculateCurrentStock(i.code); const min = parseInt(i.minStock); const low = cur <= min; const uom = i.uom || '';
+                tb.innerHTML += `<tr class="border-b"><td class="p-3 font-mono">${i.code}</td><td class="p-3">${i.name}</td><td class="p-3 font-bold text-lg">${cur} <span class="text-xs text-gray-500 font-normal">${uom}</span></td><td class="p-3">${low ? '<span class="text-red-600 font-bold bg-red-100 px-2 rounded">LOW</span>' : '<span class="text-green-700 bg-green-100 px-2 rounded">OK</span>'}</td></tr>`;
+                if (low) { ll.innerHTML += `<li><b>${i.name}</b> (${i.code}) - Stock: ${cur} ${uom} (Min: ${min})</li>`; if (parseInt(i.leadTime) > 5) ul.innerHTML += `<li><b>${i.name}</b> - Required: <span class="bg-red-200 text-red-800 px-1 rounded font-bold">${Math.ceil((min * 1.2) - cur)} ${uom}</span></li>`; }
             });
         }
 
-        // --- ITEM MASTER & EDIT ---
         function addItem() {
-            const code = document.getElementById('new-code').value.trim();
-            if(!code || items.some(i => i.code === code)) return alert("Code exists or invalid.");
-            items.push({
-                code, 
-                name: document.getElementById('new-name').value, 
-                uom: document.getElementById('new-uom').value || 'Nos',
-                openStock: document.getElementById('new-open').value||0, 
-                minStock: document.getElementById('new-min').value||0, 
-                leadTime: document.getElementById('new-lead').value||0
-            });
+            const c = document.getElementById('new-code').value.trim(); if(!c || items.some(i => i.code === c)) return alert("Code exists/invalid.");
+            items.push({code: c, name: document.getElementById('new-name').value, uom: document.getElementById('new-uom').value || 'Nos', openStock: document.getElementById('new-open').value||0, minStock: document.getElementById('new-min').value||0, leadTime: document.getElementById('new-lead').value||0});
             saveData(); renderMasterTable(); document.querySelectorAll('input[id^="new-"]').forEach(i => i.value = '');
         }
 
-        function renderMasterTable() {
-            document.getElementById('master-table-body').innerHTML = items.map((i, index) => `
-                <tr class="border-b hover:bg-gray-50">
-                    <td class="p-2 text-center"><input type="checkbox" class="print-cb" value="${i.code}"></td>
-                    <td class="p-2 font-mono">${i.code}</td><td class="p-2">${i.name}</td>
-                    <td class="p-2 text-gray-500 text-xs">${i.uom || '-'}</td>
-                    <td class="p-2">${i.openStock}</td><td class="p-2">${i.minStock}</td><td class="p-2">${i.leadTime}</td>
-                    <td class="p-2 text-center space-x-2">
-                        <button onclick="openEditModal('${i.code}')" class="text-blue-600 hover:text-blue-800 font-bold">Edit</button>
-                        <button onclick="deleteItem(${index})" class="text-red-500 hover:text-red-700 font-bold ml-2">Delete</button>
-                    </td>
-                </tr>`).join('');
-        }
+        function renderMasterTable() { document.getElementById('master-table-body').innerHTML = items.map((i, idx) => `<tr class="border-b"><td class="p-2 text-center"><input type="checkbox" class="print-cb" value="${i.code}"></td><td class="p-2 font-mono">${i.code}</td><td class="p-2">${i.name}</td><td class="p-2 text-gray-500 text-xs">${i.uom || '-'}</td><td class="p-2">${i.openStock}</td><td class="p-2">${i.minStock}</td><td class="p-2">${i.leadTime}</td><td class="p-2 text-center space-x-2"><button onclick="openEditModal('${i.code}')" class="text-blue-600 font-bold">Edit</button><button onclick="deleteItem(${idx})" class="text-red-500 ml-2 font-bold">Delete</button></td></tr>`).join(''); }
+        function deleteItem(idx) { if(confirm("Delete item? Logs remain.")) { items.splice(idx, 1); saveData(); renderMasterTable(); } }
 
-        function deleteItem(index) {
-            if(confirm("Delete this item? Past logs will remain.")) { items.splice(index, 1); saveData(); renderMasterTable(); }
-        }
-
-        function openEditModal(code) {
-            const item = items.find(i => i.code === code);
-            const hasLogs = logs.some(l => l.code === code);
-            
-            document.getElementById('edit-code').value = item.code;
-            document.getElementById('edit-name').value = item.name;
-            document.getElementById('edit-uom').value = item.uom || '';
-            document.getElementById('edit-min').value = item.minStock;
-            document.getElementById('edit-lead').value = item.leadTime;
-            
-            const openInput = document.getElementById('edit-open');
-            const openWarning = document.getElementById('edit-open-warning');
-            openInput.value = item.openStock;
-            
-            if(hasLogs) {
-                openInput.readOnly = true; openInput.classList.add('bg-gray-100', 'text-gray-500'); openWarning.classList.remove('hidden');
-            } else {
-                openInput.readOnly = false; openInput.classList.remove('bg-gray-100', 'text-gray-500'); openWarning.classList.add('hidden');
-            }
+        function openEditModal(c) {
+            const i = items.find(x => x.code === c); const h = logs.some(l => l.code === c);
+            document.getElementById('edit-code').value = i.code; document.getElementById('edit-name').value = i.name; document.getElementById('edit-uom').value = i.uom || ''; document.getElementById('edit-min').value = i.minStock; document.getElementById('edit-lead').value = i.leadTime;
+            const oInput = document.getElementById('edit-open'); oInput.value = i.openStock;
+            if(h) { oInput.readOnly = true; oInput.classList.add('bg-gray-100'); document.getElementById('edit-open-warning').classList.remove('hidden'); } else { oInput.readOnly = false; oInput.classList.remove('bg-gray-100'); document.getElementById('edit-open-warning').classList.add('hidden'); }
             document.getElementById('edit-modal').classList.remove('hidden');
         }
 
         function saveEditItem() {
-            const code = document.getElementById('edit-code').value;
-            let itemIndex = items.findIndex(i => i.code === code);
-            if(itemIndex > -1) {
-                items[itemIndex].name = document.getElementById('edit-name').value;
-                items[itemIndex].uom = document.getElementById('edit-uom').value || 'Nos';
-                items[itemIndex].minStock = document.getElementById('edit-min').value;
-                items[itemIndex].leadTime = document.getElementById('edit-lead').value;
-                if(!document.getElementById('edit-open').readOnly) {
-                    items[itemIndex].openStock = document.getElementById('edit-open').value;
-                }
-                saveData(); renderMasterTable(); closeModal('edit-modal');
-            }
+            const c = document.getElementById('edit-code').value; let idx = items.findIndex(x => x.code === c);
+            if(idx > -1) { items[idx].name = document.getElementById('edit-name').value; items[idx].uom = document.getElementById('edit-uom').value || 'Nos'; items[idx].minStock = document.getElementById('edit-min').value; items[idx].leadTime = document.getElementById('edit-lead').value; if(!document.getElementById('edit-open').readOnly) items[idx].openStock = document.getElementById('edit-open').value; saveData(); renderMasterTable(); closeModal('edit-modal'); }
         }
 
-        // --- SCANNING ---
         function handleScan(e) {
             if (e.key === 'Enter') {
-                const code = e.target.value.trim(); e.target.value = ''; 
-                activeScanItem = items.find(i => i.code === code);
-                if (!activeScanItem) {
-                    document.getElementById('scan-error').innerText = "Barcode unrecognised. Item not in Master list.";
-                    document.getElementById('scan-error').classList.remove('hidden');
-                    return;
-                }
-                document.getElementById('scan-dialog').classList.remove('hidden');
-                document.getElementById('scan-item-name').innerText = activeScanItem.name;
-                document.getElementById('scan-item-code').innerText = activeScanItem.code;
-                document.getElementById('scan-uom-display').innerText = activeScanItem.uom || '';
-                document.getElementById('scan-uom-label').innerText = activeScanItem.uom || '';
-                document.getElementById('scan-current-stock').innerText = calculateCurrentStock(code);
-                document.getElementById('scan-qty').value = 1;
-                document.getElementById('scan-error').classList.add('hidden');
+                const c = e.target.value.trim(); e.target.value = ''; activeScanItem = items.find(i => i.code === c);
+                if (!activeScanItem) return alert("Barcode unrecognised.");
+                document.getElementById('scan-dialog').classList.remove('hidden'); document.getElementById('scan-item-name').innerText = activeScanItem.name; document.getElementById('scan-item-code').innerText = activeScanItem.code; document.getElementById('scan-uom-display').innerText = activeScanItem.uom || ''; document.getElementById('scan-uom-label').innerText = activeScanItem.uom || ''; document.getElementById('scan-current-stock').innerText = calculateCurrentStock(c); document.getElementById('scan-qty').value = 1;
             }
         }
 
         function submitLog() {
-            const type = document.querySelector('input[name="scanType"]:checked').value;
-            const qty = parseInt(document.getElementById('scan-qty').value);
-            const currentStock = calculateCurrentStock(activeScanItem.code);
-
-            if (type === 'OUT' && qty > currentStock) {
-                const err = document.getElementById('scan-error');
-                err.innerText = `Rejection: Stock insufficient. Only ${currentStock} available.`;
-                err.classList.remove('hidden');
-                return;
-            }
-
-            logs.push({
-                timestamp: new Date().toLocaleString(), 
-                user: activeUser.name, 
-                code: activeScanItem.code, 
-                uom: activeScanItem.uom || '-',
-                type, 
-                qty
-            });
-            saveData(); document.getElementById('scan-dialog').classList.add('hidden');
-            document.getElementById('scanner-input').focus();
+            const t = document.querySelector('input[name="scanType"]:checked').value; const q = parseInt(document.getElementById('scan-qty').value); const c = calculateCurrentStock(activeScanItem.code);
+            if (t === 'OUT' && q > c) return alert(`Insufficient stock. Only ${c} available.`);
+            logs.push({timestamp: new Date().toLocaleString(), user: activeUser.name, code: activeScanItem.code, uom: activeScanItem.uom || '-', type: t, qty: q});
+            saveData(); document.getElementById('scan-dialog').classList.add('hidden'); document.getElementById('scanner-input').focus();
         }
 
-        // --- MANUAL LOG (ADMIN) ---
-        function openManualLogModal() {
-            const select = document.getElementById('manual-item-select');
-            select.innerHTML = items.map(i => `<option value="${i.code}">${i.name} (${i.code}) - Stock: ${calculateCurrentStock(i.code)} ${i.uom || ''}</option>`).join('');
-            document.getElementById('manual-log-modal').classList.remove('hidden');
-        }
-
+        function openManualLogModal() { document.getElementById('manual-item-select').innerHTML = items.map(i => `<option value="${i.code}">${i.name} - ${calculateCurrentStock(i.code)} ${i.uom||''}</option>`).join(''); document.getElementById('manual-log-modal').classList.remove('hidden'); }
         function submitManualLog() {
-            const code = document.getElementById('manual-item-select').value;
-            const item = items.find(i => i.code === code);
-            const type = document.getElementById('manual-type-select').value;
-            const qty = parseInt(document.getElementById('manual-qty').value);
-            
-            logs.push({ 
-                timestamp: new Date().toLocaleString() + " [MANUAL]", 
-                user: activeUser.name, 
-                code: item.code,
-                uom: item.uom || '-', 
-                type: type, 
-                qty: qty 
-            });
-            saveData(); renderLogsTable(); closeModal('manual-log-modal');
+            const c = document.getElementById('manual-item-select').value; const i = items.find(x => x.code === c); const t = document.getElementById('manual-type-select').value; const q = parseInt(document.getElementById('manual-qty').value);
+            logs.push({ timestamp: new Date().toLocaleString() + " [MANUAL]", user: activeUser.name, code: i.code, uom: i.uom || '-', type: t, qty: q }); saveData(); renderLogsTable(); closeModal('manual-log-modal');
         }
+        function renderLogsTable() { document.getElementById('logs-table-body').innerHTML = [...logs].reverse().map(l => `<tr class="border-b"><td class="p-2 text-xs text-gray-500">${l.timestamp}</td><td class="p-2 font-bold">${l.user}</td><td class="p-2 font-mono">${l.code}</td><td class="p-2 font-bold ${l.type==='IN'?'text-green-700':'text-red-600'}">${l.type}</td><td class="p-2 font-bold">${l.qty}</td><td class="p-2 text-xs text-gray-500">${l.uom || '-'}</td></tr>`).join(''); }
 
-        function renderLogsTable() {
-            document.getElementById('logs-table-body').innerHTML = [...logs].reverse().map(l => `
-                <tr class="border-b hover:bg-gray-50">
-                    <td class="p-2 text-xs text-gray-500">${l.timestamp}</td><td class="p-2 font-bold">${l.user}</td>
-                    <td class="p-2 font-mono">${l.code}</td><td class="p-2 font-bold ${l.type==='IN'?'text-green-700':'text-red-600'}">${l.type}</td>
-                    <td class="p-2 font-bold">${l.qty}</td>
-                    <td class="p-2 text-xs text-gray-500">${l.uom || '-'}</td>
-                </tr>`).join('');
-        }
-
-        // --- UTILS & MOCK FUNCTIONS ---
-        function switchView(id) {
-            document.querySelectorAll('.view-section').forEach(el => el.classList.add('hidden'));
-            document.getElementById('view-' + id).classList.remove('hidden');
-            if(id === 'dashboard') updateDashboard();
-            if(id === 'master') renderMasterTable();
-            if(id === 'logs') renderLogsTable();
-            if(id === 'scan') { document.getElementById('scanner-input').value = ''; document.getElementById('scanner-input').focus(); }
-        }
+        function switchView(id) { document.querySelectorAll('.view-section').forEach(el => el.classList.add('hidden')); document.getElementById('view-' + id).classList.remove('hidden'); if(id === 'dashboard') updateDashboard(); if(id === 'master') renderMasterTable(); if(id === 'logs') renderLogsTable(); if(id === 'scan') { document.getElementById('scanner-input').value = ''; document.getElementById('scanner-input').focus(); } }
         function closeModal(id) { document.getElementById(id).classList.add('hidden'); }
-        function toggleAllCheckboxes(masterCb) { document.querySelectorAll('.print-cb').forEach(cb => cb.checked = masterCb.checked); }
+        function toggleAllCheckboxes(m) { document.querySelectorAll('.print-cb').forEach(cb => cb.checked = m.checked); }
 
-        function handleAuthClick() { alert("Google Drive Sync requires the Client ID logic to be activated in the code."); }
-        function handleSignoutClick() { alert("Google Drive disconnected."); }
+        function factoryReset() { if(confirm("WARNING: Deletes all data.\nProceed?")) { if(prompt("Type 'RESET':") === "RESET") { localStorage.clear(); sessionStorage.clear(); alert("Wiped. Returning to Login."); location.reload(); } } }
 
-        function factoryReset() {
-            if(confirm("WARNING: This will delete ALL Items, Logs, and Users from this device.\nYou cannot undo this without a PC Backup file.\n\nDo you want to proceed?")) {
-                const check = prompt("Type 'RESET' to confirm deletion of all data:");
-                if (check === "RESET") {
-                    localStorage.clear(); sessionStorage.clear();
-                    alert("System Data Wiped Successfully. Returning to Login."); location.reload();
-                } else { alert("Factory Reset cancelled."); }
-            }
+        function exportCSV(t) {
+            let d = t === 'master' ? items.map(i => ({"Item Code": i.code, "Item Name": i.name, "UOM": i.uom || '-', "Open": i.openStock, "Min": i.minStock, "Lead": i.leadTime, "Closing": calculateCurrentStock(i.code)})) : logs.map(l => ({"Date": l.timestamp, "User": l.user, "Code": l.code, "Type": l.type, "Qty": l.qty, "UOM": l.uom || '-'}));
+            if (!d.length) return alert("No data."); const k = Object.keys(d[0]); const c = "data:text/csv;charset=utf-8," + k.join(",") + "\n" + d.map(r => k.map(x => `"${r[x]}"`).join(",")).join("\n");
+            const l = document.createElement("a"); l.href = encodeURI(c); l.download = `store_${t}_${new Date().toISOString().split('T')[0]}.csv`; document.body.appendChild(l); l.click();
         }
+        function exportLocalJSON() { const l = document.createElement("a"); l.href = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify({items, logs, users})); l.download = `inventory_backup_${new Date().toISOString().split('T')[0]}.json`; document.body.appendChild(l); l.click(); }
+        function importLocalJSON(e) { const r = new FileReader(); r.onload = evt => { try { const d = JSON.parse(evt.target.result); items = d.items; logs = d.logs; users = d.users; saveData(); alert("Restored! Logging out."); logout(); } catch(err) { alert("Invalid."); } }; if(e.target.files[0]) r.readAsText(e.target.files[0]); }
 
-        // --- EXPORT & PRINT ---
-        function exportCSV(type) {
-            let dataToExport = [];
-            if (type === 'master') {
-                if (!items.length) return alert("No items to export.");
-                dataToExport = items.map(item => ({
-                    "Item Code": item.code, "Item Name": item.name, "UOM": item.uom || '-', "Opening Stock": item.openStock,
-                    "Min Level": item.minStock, "Lead Time": item.leadTime, "Closing Stock": calculateCurrentStock(item.code)
-                }));
-            } else {
-                if (!logs.length) return alert("No logs to export.");
-                dataToExport = logs.map(l => ({
-                    "Date/Time": l.timestamp, "User": l.user, "Item Code": l.code, 
-                    "Type": l.type, "Qty": l.qty, "UOM": l.uom || '-'
-                }));
-            }
-            const keys = Object.keys(dataToExport[0]);
-            const csvContent = "data:text/csv;charset=utf-8," + keys.join(",") + "\n" + dataToExport.map(row => keys.map(k => `"${row[k]}"`).join(",")).join("\n");
-            const link = document.createElement("a");
-            link.setAttribute("href", encodeURI(csvContent));
-            link.setAttribute("download", `store_${type}_${new Date().toISOString().split('T')[0]}.csv`);
-            document.body.appendChild(link); link.click();
-        }
-
-        function exportLocalJSON() {
-            const link = document.createElement("a");
-            link.href = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify({items, logs, users}));
-            link.download = `inventory_backup_${new Date().toISOString().split('T')[0]}.json`;
-            document.body.appendChild(link); link.click();
-        }
-
-        function importLocalJSON(e) {
-            const reader = new FileReader();
-            reader.onload = function(evt) {
-                try {
-                    const d = JSON.parse(evt.target.result);
-                    items = d.items; logs = d.logs; users = d.users; saveData();
-                    alert("Restored! Logging out for security."); logout();
-                } catch(err) { alert("Invalid file."); }
-            };
-            if(e.target.files[0]) reader.readAsText(e.target.files[0]);
-        }
-
-        function openPrintModal() {
-            const checked = document.querySelectorAll('.print-cb:checked');
-            if(checked.length === 0) return alert("Select at least one item.");
-            document.getElementById('print-config-modal').classList.remove('hidden');
-        }
-
+        function openPrintModal() { if(document.querySelectorAll('.print-cb:checked').length === 0) return alert("Select item."); document.getElementById('print-config-modal').classList.remove('hidden'); }
         function executePrint() {
-            let width = parseFloat(document.getElementById('print-width').value);
-            let height = parseFloat(document.getElementById('print-height').value);
-            if (width < 5) width = 5; if (width > 10) width = 10; if (height < 1.5) height = 1.5;
-
-            const selectedCodes = Array.from(document.querySelectorAll('.print-cb:checked')).map(cb => cb.value);
-            const itemsToPrint = items.filter(i => selectedCodes.includes(i.code));
-            const printArea = document.getElementById('print-area');
-            
-            printArea.innerHTML = itemsToPrint.map((item, index) => `
-                <div class="label-item" style="width: ${width}cm; height: ${height}cm;">
-                    <div class="label-name">${item.name}</div>
-                    <svg id="barcode-${index}"></svg>
-                </div>`).join('');
-            
-            setTimeout(() => {
-                itemsToPrint.forEach((item, index) => {
-                    JsBarcode(`#barcode-${index}`, item.code, { 
-                        format: "CODE128", width: 1.5, height: (height * 37.8) - 35, 
-                        displayValue: true, fontSize: 12, textMargin: 2, margin: 0
-                    });
-                });
-                closeModal('print-config-modal');
-                setTimeout(() => { window.print(); }, 500);
-            }, 100);
+            let w = parseFloat(document.getElementById('print-width').value); let h = parseFloat(document.getElementById('print-height').value); if(w < 5) w = 5; if(w > 10) w = 10; if(h < 1.5) h = 1.5;
+            const s = Array.from(document.querySelectorAll('.print-cb:checked')).map(cb => cb.value); const iToP = items.filter(i => s.includes(i.code));
+            document.getElementById('print-area').innerHTML = iToP.map((i, idx) => `<div class="label-item" style="width: ${w}cm; height: ${h}cm;"><div class="label-name">${i.name}</div><svg id="barcode-${idx}"></svg></div>`).join('');
+            setTimeout(() => { iToP.forEach((i, idx) => { JsBarcode(`#barcode-${idx}`, i.code, { format: "CODE128", width: 1.5, height: (h * 37.8) - 35, displayValue: true, fontSize: 12, textMargin: 2, margin: 0 }); }); closeModal('print-config-modal'); setTimeout(() => { window.print(); }, 500); }, 100);
         }
 
-        // Initialize App Session Check
         checkSession();
-
     </script>
 </body>
 </html>
