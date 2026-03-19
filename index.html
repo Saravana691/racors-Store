@@ -34,22 +34,25 @@
             <div class="space-y-4 text-left">
                 <div><label class="block text-sm font-bold text-gray-700">Username</label><input type="text" id="login-user" class="w-full border p-2 rounded outline-none focus:border-blue-500"></div>
                 <div><label class="block text-sm font-bold text-gray-700">Password</label><input type="password" id="login-pass" class="w-full border p-2 rounded outline-none focus:border-blue-500" onkeypress="handleLoginEnter(event)"></div>
-                <button onclick="attemptLogin()" class="w-full bg-blue-600 text-white font-bold py-2 rounded hover:bg-blue-700 transition">Log In</button>
+                
+                <div class="flex items-center gap-2 mt-2 mb-2 bg-blue-50 p-2 rounded border border-blue-100">
+                    <input type="checkbox" id="auto-sync-cb" checked class="w-4 h-4 text-blue-600 cursor-pointer">
+                    <label class="text-xs font-bold text-blue-800 cursor-pointer" for="auto-sync-cb">Auto-Sync with Google Cloud</label>
+                </div>
+                
+                <button id="btn-login-main" onclick="attemptLogin()" class="w-full bg-blue-600 text-white font-bold py-2 rounded hover:bg-blue-700 transition">Log In</button>
                 <p id="login-error" class="text-red-500 text-sm hidden text-center mt-2"></p>
             </div>
             
             <div class="mt-6 border-t pt-4">
-                <p class="text-xs text-gray-400 mb-2">Sync latest data before logging in.</p>
-                <button onclick="handleLoginCloudRestore()" id="btn-cloud-restore" class="w-full bg-white border border-gray-300 text-gray-700 font-bold py-2 rounded flex items-center justify-center gap-2 hover:bg-gray-50 transition shadow-sm text-sm">
-                    <svg class="w-4 h-4 text-blue-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M9 19l3 3m0 0l3-3m-3 3V10"></path></svg>
-                    Restore Data from Cloud
+                <button onclick="triggerManualCloudRestore()" id="btn-cloud-restore" class="w-full bg-white border border-gray-300 text-gray-700 font-bold py-2 rounded flex items-center justify-center gap-2 hover:bg-gray-50 transition shadow-sm text-sm">
+                    Restore Data Manually (New Device)
                 </button>
             </div>
         </div>
     </div>
 
     <div id="app-wrapper" class="hidden">
-        
         <nav class="bg-blue-800 text-white p-4 shadow-md flex justify-between items-center no-print">
             <div class="flex items-center"><h1 class="text-xl font-bold">StockManager</h1><span id="nav-user-badge" class="bg-blue-600 px-2 py-1 rounded text-xs font-mono ml-3"></span></div>
             <div class="space-x-4 flex items-center text-sm font-semibold">
@@ -186,7 +189,7 @@
                         </div>
                         <div id="gdrive-logged-out">
                             <p class="text-sm text-gray-600 mb-4">Connect to manually push/pull cloud backups.</p>
-                            <button onclick="handleAuthClick()" class="w-full bg-white border border-gray-300 font-bold py-2 rounded hover:bg-gray-50 transition text-gray-700">Login to Google</button>
+                            <button onclick="triggerManualDataConnect()" class="w-full bg-white border border-gray-300 font-bold py-2 rounded hover:bg-gray-50 transition text-gray-700">Login to Google</button>
                         </div>
                         <div id="gdrive-logged-in" class="hidden flex-col gap-3">
                             <button onclick="pushToDrive(event)" id="btn-manual-push" class="w-full bg-green-600 text-white font-bold py-2 rounded hover:bg-green-700 transition shadow-sm">Push New Backup to Drive</button>
@@ -252,7 +255,7 @@
         const GOOGLE_CLIENT_ID = '344270645228-n27js5m9vctohogghuk71d7oaken60kb.apps.googleusercontent.com';
 
         // --- GLOBAL VARIABLES ---
-        let tokenClient; let gAccessToken = null;
+        let tokenClient; let gAccessToken = null; let googleAction = 'login'; 
         let items = JSON.parse(localStorage.getItem('stockItems')) || []; let logs = JSON.parse(localStorage.getItem('stockLogs')) || []; let users = JSON.parse(localStorage.getItem('stockUsers'));
         if (!users || users.length === 0 || !users[0].pass) { users = [{name: 'Admin', role: 'Admin', pass: 'password123'}]; localStorage.setItem('stockUsers', JSON.stringify(users)); }
         let activeUser = null; let activeScanItem = null;
@@ -265,7 +268,146 @@
             }
         });
 
-        // --- SEARCH BAR LOGIC ---
+        // --- GOOGLE DRIVE CENTRAL TRAFFIC CONTROLLER ---
+        function initGIS() {
+            if (GOOGLE_CLIENT_ID === 'YOUR_CLIENT_ID_HERE') return; 
+            tokenClient = google.accounts.oauth2.initTokenClient({
+                client_id: GOOGLE_CLIENT_ID, scope: 'https://www.googleapis.com/auth/drive.file',
+                callback: handleGoogleCallback
+            });
+        }
+
+        async function handleGoogleCallback(resp) {
+            if (resp.error) {
+                if(googleAction === 'login_auto_sync') finalizeLogin(); // If auto-sync fails, still log them in locally
+                if(googleAction === 'save_exit') finalizeLogout(); // If auth fails on exit, just log out locally
+                return;
+            }
+            gAccessToken = resp.access_token;
+            
+            if (googleAction === 'manual_restore') {
+                await performCloudRestore();
+            } else if (googleAction === 'login_auto_sync') {
+                await performCloudRestore();
+                finalizeLogin();
+            } else if (googleAction === 'save_exit') {
+                await silentPushToDrive();
+                finalizeLogout();
+            } else if (googleAction === 'data_tab_connect') {
+                document.getElementById('gdrive-logged-out').classList.add('hidden');
+                document.getElementById('gdrive-logged-in').classList.remove('hidden');
+                document.getElementById('gdrive-logged-in').classList.add('flex');
+                document.getElementById('gdrive-status').innerText = 'Connected';
+                document.getElementById('gdrive-status').className = 'bg-green-100 text-green-800 px-2 py-1 rounded text-xs font-bold';
+                listDriveBackups();
+            }
+        }
+
+        // --- CLOUD RESTORE ENGINE ---
+        async function performCloudRestore() {
+            try {
+                const pastDate = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString();
+                const query = `trashed=false and name contains 'StockBackup_' and createdTime > '${pastDate}'`;
+                const res = await fetch(`https://www.googleapis.com/drive/v3/files?q=${encodeURIComponent(query)}&orderBy=createdTime desc&pageSize=1&fields=files(id,name)`, { headers: { 'Authorization': 'Bearer ' + gAccessToken } });
+                const data = await res.json();
+                
+                if (data.files && data.files.length > 0) {
+                    const fileId = data.files[0].id;
+                    const dlRes = await fetch(`https://www.googleapis.com/drive/v3/files/${fileId}?alt=media`, { headers: { 'Authorization': 'Bearer ' + gAccessToken } });
+                    const fileData = await dlRes.json();
+                    
+                    if(fileData.items && fileData.users) {
+                        items = fileData.items || []; logs = fileData.logs || []; users = fileData.users;
+                        saveData();
+                        alert("Success! Restored from cloud backup: " + data.files[0].name);
+                    } else { alert("Error: File is not a valid StockManager backup."); }
+                } else { alert("No recent backups found on this Google account."); }
+            } catch(e) { alert("Error communicating with Google Drive."); }
+        }
+
+        // --- LOGIN & SESSION ROUTING ---
+        function handleLoginEnter(e) { if(e.key === 'Enter') attemptLogin(); }
+        
+        function attemptLogin() {
+            const u = document.getElementById('login-user').value.trim(); const p = document.getElementById('login-pass').value; const err = document.getElementById('login-error');
+            const user = users.find(x => x.name.toLowerCase() === u.toLowerCase() && x.pass === p);
+            
+            if(user) {
+                activeUser = user;
+                const autoSync = document.getElementById('auto-sync-cb').checked;
+                if (autoSync) {
+                    if (GOOGLE_CLIENT_ID === 'YOUR_CLIENT_ID_HERE') { finalizeLogin(); return; }
+                    googleAction = 'login_auto_sync';
+                    const btn = document.getElementById('btn-login-main');
+                    btn.innerText = "Syncing..."; btn.disabled = true;
+                    tokenClient.requestAccessToken({prompt: 'consent'});
+                } else { finalizeLogin(); }
+            } else { err.innerText = "Invalid Login"; err.classList.remove('hidden'); }
+        }
+
+        function finalizeLogin() {
+            sessionStorage.setItem('activeStockSession', JSON.stringify(activeUser)); 
+            document.getElementById('login-error').classList.add('hidden');
+            document.getElementById('login-screen').classList.add('hidden');
+            document.getElementById('app-wrapper').classList.remove('hidden');
+            document.getElementById('nav-user-badge').innerText = `${activeUser.name} [${activeUser.role}]`;
+            document.getElementById('login-pass').value = ''; 
+            document.getElementById('btn-login-main').innerText = "Log In"; document.getElementById('btn-login-main').disabled = false;
+            applyPermissions(); switchView('dashboard'); renderUsersTable();
+        }
+
+        // --- BUTTON TRIGGERS ---
+        function triggerManualCloudRestore() {
+            if (GOOGLE_CLIENT_ID === 'YOUR_CLIENT_ID_HERE') return alert("Insert Client ID first.");
+            googleAction = 'manual_restore';
+            tokenClient.requestAccessToken({prompt: 'consent'});
+        }
+        function triggerManualDataConnect() {
+            if (GOOGLE_CLIENT_ID === 'YOUR_CLIENT_ID_HERE') return alert("Insert Client ID first.");
+            googleAction = 'data_tab_connect';
+            tokenClient.requestAccessToken({prompt: 'consent'});
+        }
+
+        // --- SAVE & EXIT LOGIC ---
+        async function saveAndExit() {
+            const btn = document.getElementById('btn-save-exit');
+            const autoSync = document.getElementById('auto-sync-cb').checked;
+            
+            if (gAccessToken) {
+                btn.innerText = "Syncing..."; await silentPushToDrive(); finalizeLogout();
+            } else if (autoSync && GOOGLE_CLIENT_ID !== 'YOUR_CLIENT_ID_HERE') {
+                btn.innerText = "Syncing...";
+                googleAction = 'save_exit';
+                tokenClient.requestAccessToken({prompt: 'consent'});
+            } else {
+                finalizeLogout();
+            }
+        }
+
+        async function silentPushToDrive() {
+            if (!gAccessToken) return false;
+            const backupData = { items, logs, users }; const fileBlob = new Blob([JSON.stringify(backupData)], {type: 'application/json'});
+            const metadata = { name: `StockBackup_${new Date().toISOString().replace(/[:.]/g, '-')}.json`, mimeType: 'application/json' };
+            const form = new FormData(); form.append('metadata', new Blob([JSON.stringify(metadata)], {type: 'application/json'})); form.append('file', fileBlob);
+            try { const res = await fetch('https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart', { method: 'POST', headers: { 'Authorization': 'Bearer ' + gAccessToken }, body: form }); return res.ok; } catch (e) { return false; }
+        }
+
+        function finalizeLogout() {
+            activeUser = null; sessionStorage.removeItem('activeStockSession'); 
+            document.getElementById('app-wrapper').classList.add('hidden'); document.getElementById('login-screen').classList.remove('hidden');
+            document.getElementById('btn-save-exit').innerText = "Save & Exit";
+            if(gAccessToken) handleSignoutClick(); // Clean up Google session for safety
+        }
+
+        function handleSignoutClick() {
+            if (gAccessToken) {
+                google.accounts.oauth2.revoke(gAccessToken, () => {
+                    gAccessToken = null; document.getElementById('gdrive-logged-in').classList.add('hidden'); document.getElementById('gdrive-logged-in').classList.remove('flex'); document.getElementById('gdrive-logged-out').classList.remove('hidden'); document.getElementById('gdrive-status').innerText = 'Disconnected'; document.getElementById('gdrive-status').className = 'bg-gray-200 text-gray-600 px-2 py-1 rounded text-xs font-bold';
+                });
+            }
+        }
+
+        // --- UNIVERSAL SEARCH LOGIC ---
         function filterTable(inputId, tableId) {
             const filter = document.getElementById(inputId).value.toUpperCase();
             const rows = document.getElementById(tableId).getElementsByTagName("tr");
@@ -273,94 +415,13 @@
                 const tdCode = rows[i].getElementsByTagName("td")[tableId === 'master-table-body' ? 1 : (tableId === 'logs-table-body' ? 2 : 0)];
                 const tdName = rows[i].getElementsByTagName("td")[tableId === 'master-table-body' ? 2 : (tableId === 'logs-table-body' ? 3 : 1)];
                 if (tdCode || tdName) {
-                    const txtCode = tdCode.textContent || tdCode.innerText;
-                    const txtName = tdName.textContent || tdName.innerText;
-                    if (txtCode.toUpperCase().indexOf(filter) > -1 || txtName.toUpperCase().indexOf(filter) > -1) {
-                        rows[i].style.display = "";
-                    } else { rows[i].style.display = "none"; }
+                    const txtCode = tdCode.textContent || tdCode.innerText; const txtName = tdName.textContent || tdName.innerText;
+                    if (txtCode.toUpperCase().indexOf(filter) > -1 || txtName.toUpperCase().indexOf(filter) > -1) { rows[i].style.display = ""; } else { rows[i].style.display = "none"; }
                 }       
             }
         }
 
-        // --- GOOGLE DRIVE OAUTH & API LOGIC ---
-        function initGIS() {
-            if (GOOGLE_CLIENT_ID === 'YOUR_CLIENT_ID_HERE') return; 
-            tokenClient = google.accounts.oauth2.initTokenClient({
-                client_id: GOOGLE_CLIENT_ID, scope: 'https://www.googleapis.com/auth/drive.file',
-                callback: (tokenResponse) => {
-                    if (tokenResponse && tokenResponse.access_token) {
-                        gAccessToken = tokenResponse.access_token;
-                        document.getElementById('gdrive-logged-out').classList.add('hidden');
-                        document.getElementById('gdrive-logged-in').classList.remove('hidden');
-                        document.getElementById('gdrive-logged-in').classList.add('flex');
-                        document.getElementById('gdrive-status').innerText = 'Connected';
-                        document.getElementById('gdrive-status').className = 'bg-green-100 text-green-800 px-2 py-1 rounded text-xs font-bold';
-                        listDriveBackups();
-                    }
-                },
-            });
-        }
-
-        function handleAuthClick() {
-            if (GOOGLE_CLIENT_ID === 'YOUR_CLIENT_ID_HERE') return alert("Insert Client ID first.");
-            tokenClient.requestAccessToken({prompt: 'consent'});
-        }
-
-        function handleSignoutClick() {
-            if (gAccessToken) {
-                google.accounts.oauth2.revoke(gAccessToken, () => {
-                    gAccessToken = null;
-                    document.getElementById('gdrive-logged-in').classList.add('hidden');
-                    document.getElementById('gdrive-logged-in').classList.remove('flex');
-                    document.getElementById('gdrive-logged-out').classList.remove('hidden');
-                    document.getElementById('gdrive-status').innerText = 'Disconnected';
-                    document.getElementById('gdrive-status').className = 'bg-gray-200 text-gray-600 px-2 py-1 rounded text-xs font-bold';
-                });
-            }
-        }
-
-        async function handleLoginCloudRestore() {
-            if (GOOGLE_CLIENT_ID === 'YOUR_CLIENT_ID_HERE') return alert("Insert Client ID first.");
-            const btn = document.getElementById('btn-cloud-restore');
-            const orig = btn.innerHTML; btn.innerHTML = "Authenticating..."; btn.disabled = true;
-            
-            tokenClient.callback = async (resp) => {
-                if (resp.error) { btn.innerHTML = orig; btn.disabled = false; return; }
-                const tempToken = resp.access_token;
-                btn.innerHTML = "Downloading Data...";
-                try {
-                    const pastDate = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString();
-                    const query = `trashed=false and name contains 'StockBackup_' and createdTime > '${pastDate}'`;
-                    const res = await fetch(`https://www.googleapis.com/drive/v3/files?q=${encodeURIComponent(query)}&orderBy=createdTime desc&pageSize=1&fields=files(id,name)`, { headers: { 'Authorization': 'Bearer ' + tempToken } });
-                    const data = await res.json();
-                    
-                    if (data.files && data.files.length > 0) {
-                        const fileId = data.files[0].id;
-                        const dlRes = await fetch(`https://www.googleapis.com/drive/v3/files/${fileId}?alt=media`, { headers: { 'Authorization': 'Bearer ' + tempToken } });
-                        const fileData = await dlRes.json();
-                        if(fileData.items && fileData.users) {
-                            items = fileData.items; logs = fileData.logs; users = fileData.users; saveData();
-                            alert("Success! Restored from cloud backup. You can now log in.");
-                        } else { alert("Error: File is not a valid StockManager backup."); }
-                    } else { alert("No recent backups found on this Google account."); }
-                } catch(e) { alert("Error communicating with Google Drive."); }
-                btn.innerHTML = orig; btn.disabled = false;
-            };
-            tokenClient.requestAccessToken({prompt: 'consent'});
-        }
-
-        // Silent push for Save & Exit
-        async function silentPushToDrive() {
-            if (!gAccessToken) return false;
-            const backupData = { items, logs, users }; const fileBlob = new Blob([JSON.stringify(backupData)], {type: 'application/json'});
-            const metadata = { name: `StockBackup_${new Date().toISOString().replace(/[:.]/g, '-')}.json`, mimeType: 'application/json' };
-            const form = new FormData(); form.append('metadata', new Blob([JSON.stringify(metadata)], {type: 'application/json'})); form.append('file', fileBlob);
-            try {
-                const res = await fetch('https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart', { method: 'POST', headers: { 'Authorization': 'Bearer ' + gAccessToken }, body: form });
-                return res.ok;
-            } catch (e) { return false; }
-        }
-
+        // --- MANUAL DRIVE PUSH/PULL (DATA TAB) ---
         async function pushToDrive(event) {
             if (!gAccessToken) return alert("Not connected.");
             const btn = event ? event.target : document.getElementById('btn-manual-push'); 
@@ -385,26 +446,12 @@
             if (!confirm("WARNING: Instantly overwrite local data with cloud backup?")) return;
             try {
                 const res = await fetch(`https://www.googleapis.com/drive/v3/files/${fileId}?alt=media`, { headers: { 'Authorization': 'Bearer ' + gAccessToken } });
-                if (res.ok) { const data = await res.json(); if(data.items && data.users) { items = data.items; logs = data.logs; users = data.users; saveData(); alert("Restored! Logging out."); logout(); } else { alert("Invalid backup."); } } else { alert("Failed to download."); }
+                if (res.ok) { const data = await res.json(); if(data.items && data.users) { items = data.items || []; logs = data.logs || []; users = data.users; saveData(); alert("Restored! Logging out."); finalizeLogout(); } else { alert("Invalid backup."); } } else { alert("Failed to download."); }
             } catch(e) { alert("Download error."); }
         }
 
-        // --- AUTH & SESSION ---
+        // --- STANDARD APP LOGIC ---
         function checkSession() { const s = sessionStorage.getItem('activeStockSession'); if (s) { activeUser = JSON.parse(s); document.getElementById('login-screen').classList.add('hidden'); document.getElementById('app-wrapper').classList.remove('hidden'); document.getElementById('nav-user-badge').innerText = `${activeUser.name} [${activeUser.role}]`; applyPermissions(); switchView('dashboard'); renderUsersTable(); } }
-        function handleLoginEnter(e) { if(e.key === 'Enter') attemptLogin(); }
-        function attemptLogin() { const u = document.getElementById('login-user').value.trim(); const p = document.getElementById('login-pass').value; const err = document.getElementById('login-error'); const user = users.find(x => x.name.toLowerCase() === u.toLowerCase() && x.pass === p); if(user) { activeUser = user; sessionStorage.setItem('activeStockSession', JSON.stringify(activeUser)); err.classList.add('hidden'); document.getElementById('login-screen').classList.add('hidden'); document.getElementById('app-wrapper').classList.remove('hidden'); document.getElementById('nav-user-badge').innerText = `${activeUser.name} [${activeUser.role}]`; document.getElementById('login-pass').value = ''; applyPermissions(); switchView('dashboard'); renderUsersTable(); } else { err.innerText = "Invalid Login"; err.classList.remove('hidden'); } }
-        
-        // --- SAVE & EXIT LOGIC ---
-        async function saveAndExit() {
-            const btn = document.getElementById('btn-save-exit');
-            if (gAccessToken) {
-                btn.innerText = "Syncing...";
-                await silentPushToDrive();
-            }
-            logout();
-        }
-
-        function logout() { activeUser = null; sessionStorage.removeItem('activeStockSession'); document.getElementById('app-wrapper').classList.add('hidden'); document.getElementById('login-screen').classList.remove('hidden'); const btn = document.getElementById('btn-save-exit'); btn.innerHTML = "Save & Exit"; }
         function applyPermissions() { document.querySelectorAll('.admin-only').forEach(el => activeUser.role === 'Staff' ? el.classList.add('hidden-for-staff') : el.classList.remove('hidden-for-staff')); }
         function addUser() { const n = document.getElementById('new-user-name').value.trim(); const p = document.getElementById('new-user-pass').value; const r = document.getElementById('new-user-role').value; if(!n || !p) return alert("Empty fields."); if(users.some(u => u.name.toLowerCase() === n.toLowerCase())) return alert("Username taken."); users.push({name: n, role: r, pass: p}); saveData(); document.getElementById('new-user-name').value = ''; document.getElementById('new-user-pass').value = ''; renderUsersTable(); }
         function renderUsersTable() { document.getElementById('users-table-body').innerHTML = users.map((u, i) => `<tr class="border-b hover:bg-gray-50"><td class="p-2 font-bold">${u.name}</td><td class="p-2">${u.role}</td><td class="p-2 text-gray-400 font-mono text-xs">${u.pass}</td><td class="p-2"><button onclick="deleteUser(${i})" class="text-red-500 hover:underline text-xs font-bold">Delete</button></td></tr>`).join(''); }
@@ -417,16 +464,7 @@
         function addItem() { const c = document.getElementById('new-code').value.trim(); if(!c || items.some(i => i.code === c)) return alert("Invalid code."); items.push({code: c, name: document.getElementById('new-name').value, uom: document.getElementById('new-uom').value || 'Nos', openStock: document.getElementById('new-open').value||0, minStock: document.getElementById('new-min').value||0, leadTime: document.getElementById('new-lead').value||0}); saveData(); renderMasterTable(); document.querySelectorAll('input[id^="new-"]').forEach(i => i.value = ''); }
         function renderMasterTable() { document.getElementById('master-table-body').innerHTML = items.map((i, idx) => `<tr class="border-b hover:bg-gray-50"><td class="p-2 text-center"><input type="checkbox" class="print-cb" value="${i.code}"></td><td class="p-2 font-mono">${i.code}</td><td class="p-2 font-bold">${i.name}</td><td class="p-2 text-gray-500 text-xs">${i.uom || '-'}</td><td class="p-2">${i.openStock}</td><td class="p-2">${i.minStock}</td><td class="p-2">${i.leadTime}</td><td class="p-2 text-center space-x-2"><button onclick="openEditModal('${i.code}')" class="text-blue-600 font-bold">Edit</button></td></tr>`).join(''); filterTable('search-master', 'master-table-body'); }
         
-        // --- BULK DELETE ---
-        function deleteSelectedItems() {
-            const selected = Array.from(document.querySelectorAll('.print-cb:checked')).map(cb => cb.value);
-            if(selected.length === 0) return alert("Select at least one item to delete.");
-            if(confirm(`Are you sure you want to delete ${selected.length} item(s)? Transaction logs will remain.`)) {
-                items = items.filter(i => !selected.includes(i.code));
-                saveData(); renderMasterTable();
-            }
-        }
-
+        function deleteSelectedItems() { const s = Array.from(document.querySelectorAll('.print-cb:checked')).map(cb => cb.value); if(s.length === 0) return alert("Select at least one item."); if(confirm(`Delete ${s.length} item(s)? Logs will remain.`)) { items = items.filter(i => !s.includes(i.code)); saveData(); renderMasterTable(); } }
         function openEditModal(c) { const i = items.find(x => x.code === c); const h = logs.some(l => l.code === c); document.getElementById('edit-code').value = i.code; document.getElementById('edit-name').value = i.name; document.getElementById('edit-uom').value = i.uom || ''; document.getElementById('edit-min').value = i.minStock; document.getElementById('edit-lead').value = i.leadTime; const oInput = document.getElementById('edit-open'); oInput.value = i.openStock; if(h) { oInput.readOnly = true; oInput.classList.add('bg-gray-100'); document.getElementById('edit-open-warning').classList.remove('hidden'); } else { oInput.readOnly = false; oInput.classList.remove('bg-gray-100'); document.getElementById('edit-open-warning').classList.add('hidden'); } document.getElementById('edit-modal').classList.remove('hidden'); }
         function saveEditItem() { const c = document.getElementById('edit-code').value; let idx = items.findIndex(x => x.code === c); if(idx > -1) { items[idx].name = document.getElementById('edit-name').value; items[idx].uom = document.getElementById('edit-uom').value || 'Nos'; items[idx].minStock = document.getElementById('edit-min').value; items[idx].leadTime = document.getElementById('edit-lead').value; if(!document.getElementById('edit-open').readOnly) items[idx].openStock = document.getElementById('edit-open').value; saveData(); renderMasterTable(); closeModal('edit-modal'); } }
 
@@ -439,11 +477,9 @@
         function switchView(id) { document.querySelectorAll('.view-section').forEach(el => el.classList.add('hidden')); document.getElementById('view-' + id).classList.remove('hidden'); if(id === 'dashboard') updateDashboard(); if(id === 'master') renderMasterTable(); if(id === 'logs') renderLogsTable(); if(id === 'scan') { document.getElementById('scanner-input').value = ''; document.getElementById('scanner-input').focus(); } }
         function closeModal(id) { document.getElementById(id).classList.add('hidden'); }
         function toggleAllCheckboxes(m) { document.querySelectorAll('.print-cb').forEach(cb => cb.checked = m.checked); }
-
         function exportCSV(t) { let d = t === 'master' ? items.map(i => ({"Item Code": i.code, "Item Name": i.name, "UOM": i.uom || '-', "Open": i.openStock, "Min": i.minStock, "Lead": i.leadTime, "Closing": calculateCurrentStock(i.code)})) : logs.map(l => ({"Date": l.timestamp, "User": l.user, "Code": l.code, "Name": l.name || '-', "Type": l.type, "Qty": l.qty, "UOM": l.uom || '-'})); if (!d.length) return alert("No data."); const k = Object.keys(d[0]); const c = "data:text/csv;charset=utf-8," + k.join(",") + "\n" + d.map(r => k.map(x => `"${r[x]}"`).join(",")).join("\n"); const l = document.createElement("a"); l.href = encodeURI(c); l.download = `store_${t}_${new Date().toISOString().split('T')[0]}.csv`; document.body.appendChild(l); l.click(); }
         function exportLocalJSON() { const l = document.createElement("a"); l.href = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify({items, logs, users})); l.download = `inventory_backup_${new Date().toISOString().split('T')[0]}.json`; document.body.appendChild(l); l.click(); }
-        function importLocalJSON(e) { const r = new FileReader(); r.onload = evt => { try { const d = JSON.parse(evt.target.result); items = d.items; logs = d.logs; users = d.users; saveData(); alert("Restored! Logging out."); logout(); } catch(err) { alert("Invalid."); } }; if(e.target.files[0]) r.readAsText(e.target.files[0]); }
-
+        function importLocalJSON(e) { const r = new FileReader(); r.onload = evt => { try { const d = JSON.parse(evt.target.result); items = d.items || []; logs = d.logs || []; users = d.users; saveData(); alert("Restored! Logging out."); finalizeLogout(); } catch(err) { alert("Invalid."); } }; if(e.target.files[0]) r.readAsText(e.target.files[0]); }
         function openPrintModal() { if(document.querySelectorAll('.print-cb:checked').length === 0) return alert("Select item."); document.getElementById('print-config-modal').classList.remove('hidden'); }
         
         // --- LASER-OPTIMIZED BARCODE ENGINE ---
@@ -451,27 +487,13 @@
             let w = parseFloat(document.getElementById('print-width').value); let h = parseFloat(document.getElementById('print-height').value); if(w < 5) w = 5; if(w > 10) w = 10; if(h < 1.5) h = 1.5;
             const s = Array.from(document.querySelectorAll('.print-cb:checked')).map(cb => cb.value); const iToP = items.filter(i => s.includes(i.code));
             
-            document.getElementById('print-area').innerHTML = iToP.map((i, idx) => `
-                <div class="label-item" style="width: ${w}cm; height: ${h}cm;">
-                    <div class="label-name">${i.name}</div>
-                    <svg id="barcode-${idx}"></svg>
-                    <div class="label-code">${i.code}</div>
-                </div>`).join('');
+            document.getElementById('print-area').innerHTML = iToP.map((i, idx) => `<div class="label-item" style="width: ${w}cm; height: ${h}cm;"><div class="label-name">${i.name}</div><svg id="barcode-${idx}"></svg><div class="label-code">${i.code}</div></div>`).join('');
             
             setTimeout(() => { 
                 iToP.forEach((i, idx) => { 
-                    JsBarcode(`#barcode-${idx}`, i.code, { 
-                        format: "CODE128", 
-                        width: 2, 
-                        height: (h * 37.8) - 40, // Reduced to make room for external HTML text
-                        displayValue: false, // Turned off to prevent printer ink bleed into barcode lines
-                        background: "#ffffff",
-                        lineColor: "#000000",
-                        margin: 20 // Enforced 20px quiet zone for cheap laser scanners
-                    }); 
+                    JsBarcode(`#barcode-${idx}`, i.code, { format: "CODE128", width: 2, height: (h * 37.8) - 40, displayValue: false, background: "#ffffff", lineColor: "#000000", margin: 20 }); 
                 }); 
-                closeModal('print-config-modal'); 
-                setTimeout(() => { window.print(); }, 500); 
+                closeModal('print-config-modal'); setTimeout(() => { window.print(); }, 500); 
             }, 100);
         }
 
