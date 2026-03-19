@@ -23,7 +23,6 @@
             @page { size: A4; margin: 0.75cm; }
             .label-grid { display: flex; flex-wrap: wrap; gap: 0.2cm; align-content: flex-start; }
             
-            /* NEW: 2-COLUMN SIDE-BY-SIDE LAYOUT FOR QR CODES */
             .label-item { 
                 border: 1px dashed #ccc; 
                 display: flex; flex-direction: row; align-items: center; justify-content: flex-start; 
@@ -228,6 +227,12 @@
                         </div>
                     </div>
                 </div>
+                
+                <div class="bg-red-50 p-6 rounded shadow-sm border-t-4 border-red-600 mt-6">
+                    <h3 class="text-xl font-bold text-red-700 mb-2">Danger Zone: System Reset</h3>
+                    <p class="text-sm text-red-600 mb-4">This will permanently delete all Items, Logs, and Users from this device. It cannot be undone without a PC Backup file.</p>
+                    <button onclick="factoryReset()" class="bg-red-600 text-white font-bold py-2 px-6 rounded hover:bg-red-700 shadow-sm transition">Factory Reset Data</button>
+                </div>
             </div>
         </div>
     </div>
@@ -303,7 +308,6 @@
             });
         }
 
-        // Central UI updater to fix the "Data Tab Disconnect" bug
         function updateDriveUIState(isConnected) {
             const loggedOutDiv = document.getElementById('gdrive-logged-out');
             const loggedInDiv = document.getElementById('gdrive-logged-in');
@@ -331,7 +335,7 @@
                 return;
             }
             gAccessToken = resp.access_token;
-            updateDriveUIState(true); // Ensures the Data & Sync tab knows we are connected!
+            updateDriveUIState(true);
 
             if (googleAction === 'manual_restore') { await performCloudRestore(); } 
             else if (googleAction === 'login_auto_sync') { await performCloudRestore(); finalizeLogin(); } 
@@ -374,7 +378,6 @@
                     googleAction = 'login_auto_sync';
                     const btn = document.getElementById('btn-login-main');
                     btn.innerText = "Syncing..."; btn.disabled = true;
-                    // Will auto-authenticate if previously granted, otherwise prompts
                     tokenClient.requestAccessToken({prompt: ''}); 
                 } else { finalizeLogin(); }
             } else { err.innerText = "Invalid Login"; err.classList.remove('hidden'); }
@@ -397,7 +400,6 @@
             
             if (GOOGLE_CLIENT_ID !== 'YOUR_CLIENT_ID_HERE') {
                 googleAction = 'save_exit';
-                // Using prompt: '' forces a silent token refresh, solving the 8-hour shift expiry bug!
                 tokenClient.requestAccessToken({prompt: ''}); 
             } else { 
                 finalizeLogout(); 
@@ -496,6 +498,21 @@
         function importLocalJSON(e) { const r = new FileReader(); r.onload = evt => { try { const d = JSON.parse(evt.target.result); items = d.items || []; logs = d.logs || []; users = d.users; saveData(); alert("Restored! Logging out."); finalizeLogout(); } catch(err) { alert("Invalid."); } }; if(e.target.files[0]) r.readAsText(e.target.files[0]); }
         function openPrintModal() { if(document.querySelectorAll('.print-cb:checked').length === 0) return alert("Select item."); document.getElementById('print-config-modal').classList.remove('hidden'); }
         
+        // --- FACTORY RESET ---
+        function factoryReset() {
+            if(confirm("WARNING: This will delete ALL Items, Logs, and Users from this device.\nYou cannot undo this without a PC Backup file.\n\nDo you want to proceed?")) {
+                const check = prompt("Type 'RESET' to confirm deletion of all data:");
+                if (check === "RESET") {
+                    localStorage.clear();
+                    sessionStorage.clear();
+                    alert("System Data Wiped Successfully. Returning to Login.");
+                    location.reload();
+                } else {
+                    alert("Factory Reset cancelled.");
+                }
+            }
+        }
+        
         // --- QR CODE PRINT ENGINE (SIDE-BY-SIDE LAYOUT) ---
         function executePrint() {
             let w = parseFloat(document.getElementById('print-width').value); 
@@ -507,7 +524,6 @@
             
             const printArea = document.getElementById('print-area');
             
-            // Dynamically calculate QR Square size based on sticker height (minus padding)
             const qrPxSize = Math.floor((h * 37.8) - 10);
             
             printArea.innerHTML = iToP.map((i, idx) => `
