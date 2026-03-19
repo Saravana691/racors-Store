@@ -6,11 +6,10 @@
     <title>Store Stock Management</title>
     
     <link href="https://cdnjs.cloudflare.com/ajax/libs/tailwindcss/2.2.19/tailwind.min.css" rel="stylesheet">
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/jsbarcode/3.11.5/JsBarcode.all.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
     <script src="https://accounts.google.com/gsi/client" onload="initGIS()" async defer></script>
     
     <style>
-        /* Hides the print layout entirely from the normal screen view */
         @media screen {
             #print-area { position: absolute; left: -9999px; top: -9999px; opacity: 0; pointer-events: none; }
         }
@@ -21,28 +20,33 @@
             #print-area { position: absolute; left: 0; top: 0; width: 100%; }
             .no-print { display: none !important; }
             
-            /* Enforces the exact A4 page with your required 0.75cm margins */
             @page { size: A4; margin: 0.75cm; }
-            
             .label-grid { display: flex; flex-wrap: wrap; gap: 0.2cm; align-content: flex-start; }
             
+            /* NEW: 2-COLUMN SIDE-BY-SIDE LAYOUT FOR QR CODES */
             .label-item { 
-                border: 1px dashed #ccc; /* Lighter dashed line for easier cutting */
-                display: flex; flex-direction: column; align-items: center; justify-content: center; 
+                border: 1px dashed #ccc; 
+                display: flex; flex-direction: row; align-items: center; justify-content: flex-start; 
                 page-break-inside: avoid; overflow: hidden; box-sizing: border-box; padding: 0.1cm; 
             }
-            
-            .label-name { 
-                font-size: 10px; font-family: sans-serif; font-weight: bold; text-align: center; 
-                width: 100%; margin-bottom: 2px; line-height: 1.1;
-                /* Allows long names to wrap to a maximum of 2 lines */
-                display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; 
-                overflow: hidden; white-space: normal; 
+            .label-qr { 
+                flex-shrink: 0; display: flex; align-items: center; justify-content: center; 
             }
-            
+            .label-qr img, .label-qr canvas { 
+                max-width: 100%; max-height: 100%; object-fit: contain; 
+            }
+            .label-text { 
+                flex-grow: 1; padding-left: 0.2cm; display: flex; flex-direction: column; 
+                justify-content: center; overflow: hidden; height: 100%;
+            }
+            .label-name { 
+                font-size: 11px; font-family: sans-serif; font-weight: bold; text-align: left; 
+                margin-bottom: 2px; line-height: 1.2;
+                display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; 
+                overflow: hidden; white-space: normal; word-break: break-word;
+            }
             .label-code { 
-                font-size: 10px; font-family: monospace; font-weight: bold; 
-                text-align: center; margin-top: 2px; 
+                font-size: 10px; font-family: monospace; font-weight: bold; text-align: left; margin-top: 2px; 
             }
         }
         #scanner-input { opacity: 0; position: absolute; z-index: -1; }
@@ -261,8 +265,8 @@
         <div class="bg-white p-6 rounded shadow-lg w-96 border-t-4 border-purple-500">
             <h3 class="text-xl font-bold mb-4">Print Configuration</h3>
             <div class="grid grid-cols-2 gap-4 mb-4">
-                <div><label class="text-sm font-bold">Width (cm)</label><input type="number" id="print-width" value="6" class="w-full border p-2 text-center outline-none focus:border-purple-500"></div>
-                <div><label class="text-sm font-bold">Height (cm)</label><input type="number" id="print-height" value="2" class="w-full border p-2 text-center outline-none focus:border-purple-500"></div>
+                <div><label class="text-sm font-bold">Width (cm)</label><input type="number" id="print-width" value="5" class="w-full border p-2 text-center outline-none focus:border-purple-500"></div>
+                <div><label class="text-sm font-bold">Height (cm)</label><input type="number" id="print-height" value="1.5" class="w-full border p-2 text-center outline-none focus:border-purple-500"></div>
             </div>
             <div class="flex justify-end gap-2"><button onclick="closeModal('print-config-modal')" class="bg-gray-200 px-4 py-2 rounded font-bold text-gray-700 hover:bg-gray-300">Cancel</button><button onclick="executePrint()" class="bg-purple-600 text-white px-4 py-2 rounded font-bold shadow hover:bg-purple-700">Print</button></div>
         </div>
@@ -299,6 +303,27 @@
             });
         }
 
+        // Central UI updater to fix the "Data Tab Disconnect" bug
+        function updateDriveUIState(isConnected) {
+            const loggedOutDiv = document.getElementById('gdrive-logged-out');
+            const loggedInDiv = document.getElementById('gdrive-logged-in');
+            const statusSpan = document.getElementById('gdrive-status');
+            
+            if (isConnected) {
+                loggedOutDiv.classList.add('hidden');
+                loggedInDiv.classList.remove('hidden');
+                loggedInDiv.classList.add('flex');
+                statusSpan.innerText = 'Connected';
+                statusSpan.className = 'bg-green-100 text-green-800 px-2 py-1 rounded text-xs font-bold';
+            } else {
+                loggedInDiv.classList.add('hidden');
+                loggedInDiv.classList.remove('flex');
+                loggedOutDiv.classList.remove('hidden');
+                statusSpan.innerText = 'Disconnected';
+                statusSpan.className = 'bg-gray-200 text-gray-600 px-2 py-1 rounded text-xs font-bold';
+            }
+        }
+
         async function handleGoogleCallback(resp) {
             if (resp.error) {
                 if(googleAction === 'login_auto_sync') finalizeLogin();
@@ -306,17 +331,16 @@
                 return;
             }
             gAccessToken = resp.access_token;
+            updateDriveUIState(true); // Ensures the Data & Sync tab knows we are connected!
+
             if (googleAction === 'manual_restore') { await performCloudRestore(); } 
             else if (googleAction === 'login_auto_sync') { await performCloudRestore(); finalizeLogin(); } 
-            else if (googleAction === 'save_exit') { await silentPushToDrive(); finalizeLogout(); } 
-            else if (googleAction === 'data_tab_connect') {
-                document.getElementById('gdrive-logged-out').classList.add('hidden');
-                document.getElementById('gdrive-logged-in').classList.remove('hidden');
-                document.getElementById('gdrive-logged-in').classList.add('flex');
-                document.getElementById('gdrive-status').innerText = 'Connected';
-                document.getElementById('gdrive-status').className = 'bg-green-100 text-green-800 px-2 py-1 rounded text-xs font-bold';
-                listDriveBackups();
-            }
+            else if (googleAction === 'save_exit') { 
+                const success = await silentPushToDrive(); 
+                if(!success) alert("Warning: Cloud sync failed. Local data is safely retained on this PC.");
+                finalizeLogout(); 
+            } 
+            else if (googleAction === 'data_tab_connect') { listDriveBackups(); }
         }
 
         async function performCloudRestore() {
@@ -350,7 +374,8 @@
                     googleAction = 'login_auto_sync';
                     const btn = document.getElementById('btn-login-main');
                     btn.innerText = "Syncing..."; btn.disabled = true;
-                    tokenClient.requestAccessToken({prompt: 'consent'});
+                    // Will auto-authenticate if previously granted, otherwise prompts
+                    tokenClient.requestAccessToken({prompt: ''}); 
                 } else { finalizeLogin(); }
             } else { err.innerText = "Invalid Login"; err.classList.remove('hidden'); }
         }
@@ -365,10 +390,18 @@
         function triggerManualDataConnect() { if (GOOGLE_CLIENT_ID === 'YOUR_CLIENT_ID_HERE') return alert("Insert Client ID first."); googleAction = 'data_tab_connect'; tokenClient.requestAccessToken({prompt: 'consent'}); }
 
         async function saveAndExit() {
-            const btn = document.getElementById('btn-save-exit'); const autoSync = document.getElementById('auto-sync-cb').checked;
-            if (gAccessToken) { btn.innerText = "Syncing..."; await silentPushToDrive(); finalizeLogout(); } 
-            else if (autoSync && GOOGLE_CLIENT_ID !== 'YOUR_CLIENT_ID_HERE') { btn.innerText = "Syncing..."; googleAction = 'save_exit'; tokenClient.requestAccessToken({prompt: 'consent'}); } 
-            else { finalizeLogout(); }
+            const btn = document.getElementById('btn-save-exit'); 
+            const autoSync = document.getElementById('auto-sync-cb') ? document.getElementById('auto-sync-cb').checked : true;
+            
+            btn.innerText = "Syncing...";
+            
+            if (GOOGLE_CLIENT_ID !== 'YOUR_CLIENT_ID_HERE') {
+                googleAction = 'save_exit';
+                // Using prompt: '' forces a silent token refresh, solving the 8-hour shift expiry bug!
+                tokenClient.requestAccessToken({prompt: ''}); 
+            } else { 
+                finalizeLogout(); 
+            }
         }
 
         async function silentPushToDrive() {
@@ -386,7 +419,12 @@
         }
 
         function handleSignoutClick() {
-            if (gAccessToken) { google.accounts.oauth2.revoke(gAccessToken, () => { gAccessToken = null; document.getElementById('gdrive-logged-in').classList.add('hidden'); document.getElementById('gdrive-logged-in').classList.remove('flex'); document.getElementById('gdrive-logged-out').classList.remove('hidden'); document.getElementById('gdrive-status').innerText = 'Disconnected'; document.getElementById('gdrive-status').className = 'bg-gray-200 text-gray-600 px-2 py-1 rounded text-xs font-bold'; }); }
+            if (gAccessToken) { 
+                google.accounts.oauth2.revoke(gAccessToken, () => { 
+                    gAccessToken = null; 
+                    updateDriveUIState(false);
+                }); 
+            }
         }
 
         function filterTable(inputId, tableId) {
@@ -456,37 +494,46 @@
         function exportCSV(t) { let d = t === 'master' ? items.map(i => ({"Item Code": i.code, "Item Name": i.name, "UOM": i.uom || '-', "Open": i.openStock, "Min": i.minStock, "Lead": i.leadTime, "Closing": calculateCurrentStock(i.code)})) : logs.map(l => ({"Date": l.timestamp, "User": l.user, "Code": l.code, "Name": l.name || '-', "Type": l.type, "Qty": l.qty, "UOM": l.uom || '-'})); if (!d.length) return alert("No data."); const k = Object.keys(d[0]); const c = "data:text/csv;charset=utf-8," + k.join(",") + "\n" + d.map(r => k.map(x => `"${r[x]}"`).join(",")).join("\n"); const l = document.createElement("a"); l.href = encodeURI(c); l.download = `store_${t}_${new Date().toISOString().split('T')[0]}.csv`; document.body.appendChild(l); l.click(); }
         function exportLocalJSON() { const l = document.createElement("a"); l.href = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify({items, logs, users})); l.download = `inventory_backup_${new Date().toISOString().split('T')[0]}.json`; document.body.appendChild(l); l.click(); }
         function importLocalJSON(e) { const r = new FileReader(); r.onload = evt => { try { const d = JSON.parse(evt.target.result); items = d.items || []; logs = d.logs || []; users = d.users; saveData(); alert("Restored! Logging out."); finalizeLogout(); } catch(err) { alert("Invalid."); } }; if(e.target.files[0]) r.readAsText(e.target.files[0]); }
-
         function openPrintModal() { if(document.querySelectorAll('.print-cb:checked').length === 0) return alert("Select item."); document.getElementById('print-config-modal').classList.remove('hidden'); }
         
-        // --- PRINT ENGINE ---
+        // --- QR CODE PRINT ENGINE (SIDE-BY-SIDE LAYOUT) ---
         function executePrint() {
-            let w = parseFloat(document.getElementById('print-width').value); let h = parseFloat(document.getElementById('print-height').value); if(w < 5) w = 5; if(w > 10) w = 10; if(h < 1.5) h = 1.5;
-            const s = Array.from(document.querySelectorAll('.print-cb:checked')).map(cb => cb.value); const iToP = items.filter(i => s.includes(i.code));
+            let w = parseFloat(document.getElementById('print-width').value); 
+            let h = parseFloat(document.getElementById('print-height').value); 
+            if(w < 4) w = 4; if(w > 10) w = 10; if(h < 1.5) h = 1.5;
+            
+            const s = Array.from(document.querySelectorAll('.print-cb:checked')).map(cb => cb.value); 
+            const iToP = items.filter(i => s.includes(i.code));
             
             const printArea = document.getElementById('print-area');
+            
+            // Dynamically calculate QR Square size based on sticker height (minus padding)
+            const qrPxSize = Math.floor((h * 37.8) - 10);
+            
             printArea.innerHTML = iToP.map((i, idx) => `
                 <div class="label-item" style="width: ${w}cm; height: ${h}cm;">
-                    <div class="label-name">${i.name}</div>
-                    <svg id="barcode-${idx}"></svg>
-                    <div class="label-code">${i.code}</div>
+                    <div class="label-qr" id="qr-${idx}" style="width: ${qrPxSize}px; height: ${qrPxSize}px;"></div>
+                    <div class="label-text">
+                        <div class="label-name">${i.name}</div>
+                        <div class="label-code">${i.code}</div>
+                    </div>
                 </div>`).join('');
             
             setTimeout(() => { 
                 iToP.forEach((i, idx) => { 
-                    let bcHeight = (h * 37.8) - 45; 
-                    if (bcHeight < 15) bcHeight = 15; // Minimum safety height
-                    
-                    JsBarcode(`#barcode-${idx}`, i.code, { 
-                        format: "CODE128", width: 2, height: bcHeight, 
-                        displayValue: false, background: "#ffffff", lineColor: "#000000", margin: 15 
-                    }); 
+                    new QRCode(document.getElementById(`qr-${idx}`), {
+                        text: i.code,
+                        width: qrPxSize,
+                        height: qrPxSize,
+                        colorDark : "#000000",
+                        colorLight : "#ffffff",
+                        correctLevel : QRCode.CorrectLevel.M
+                    });
                 }); 
                 closeModal('print-config-modal'); 
                 
                 setTimeout(() => { 
                     window.print(); 
-                    // Clears the DOM element after printing so it doesn't linger invisibly
                     setTimeout(() => { printArea.innerHTML = ''; }, 1000);
                 }, 500); 
             }, 100);
