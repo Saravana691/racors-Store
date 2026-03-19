@@ -10,16 +10,40 @@
     <script src="https://accounts.google.com/gsi/client" onload="initGIS()" async defer></script>
     
     <style>
+        /* Hides the print layout entirely from the normal screen view */
+        @media screen {
+            #print-area { position: absolute; left: -9999px; top: -9999px; opacity: 0; pointer-events: none; }
+        }
+        
         @media print {
             body * { visibility: hidden; }
             #print-area, #print-area * { visibility: visible; }
             #print-area { position: absolute; left: 0; top: 0; width: 100%; }
             .no-print { display: none !important; }
+            
+            /* Enforces the exact A4 page with your required 0.75cm margins */
             @page { size: A4; margin: 0.75cm; }
+            
             .label-grid { display: flex; flex-wrap: wrap; gap: 0.2cm; align-content: flex-start; }
-            .label-item { border: 1px dashed #999; display: flex; flex-direction: column; align-items: center; justify-content: center; page-break-inside: avoid; overflow: hidden; box-sizing: border-box; padding: 4px; }
-            .label-name { font-size: 11px; font-family: sans-serif; font-weight: bold; text-align: center; width: 100%; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; margin-bottom: 2px; }
-            .label-code { font-size: 10px; font-family: monospace; text-align: center; margin-top: 2px; }
+            
+            .label-item { 
+                border: 1px dashed #ccc; /* Lighter dashed line for easier cutting */
+                display: flex; flex-direction: column; align-items: center; justify-content: center; 
+                page-break-inside: avoid; overflow: hidden; box-sizing: border-box; padding: 0.1cm; 
+            }
+            
+            .label-name { 
+                font-size: 10px; font-family: sans-serif; font-weight: bold; text-align: center; 
+                width: 100%; margin-bottom: 2px; line-height: 1.1;
+                /* Allows long names to wrap to a maximum of 2 lines */
+                display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; 
+                overflow: hidden; white-space: normal; 
+            }
+            
+            .label-code { 
+                font-size: 10px; font-family: monospace; font-weight: bold; 
+                text-align: center; margin-top: 2px; 
+            }
         }
         #scanner-input { opacity: 0; position: absolute; z-index: -1; }
         .admin-only.hidden-for-staff { display: none !important; }
@@ -46,6 +70,7 @@
             
             <div class="mt-6 border-t pt-4">
                 <button onclick="triggerManualCloudRestore()" id="btn-cloud-restore" class="w-full bg-white border border-gray-300 text-gray-700 font-bold py-2 rounded flex items-center justify-center gap-2 hover:bg-gray-50 transition shadow-sm text-sm">
+                    <svg class="w-4 h-4 text-blue-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M9 19l3 3m0 0l3-3m-3 3V10"></path></svg>
                     Restore Data Manually (New Device)
                 </button>
             </div>
@@ -67,7 +92,6 @@
         </nav>
 
         <div class="container mx-auto p-4 no-print">
-            
             <div id="view-dashboard" class="view-section">
                 <div class="flex justify-between items-center mb-4">
                     <h2 class="text-2xl font-bold">Stock Dashboard</h2>
@@ -174,7 +198,6 @@
             <div id="view-data" class="view-section hidden">
                 <h2 class="text-2xl font-bold mb-4">Data Management</h2>
                 <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
-                    
                     <div class="bg-white p-6 rounded shadow-sm border-t-4 border-blue-500">
                         <h3 class="text-xl font-bold mb-4">Local File Backup</h3>
                         <p class="text-sm text-gray-600 mb-4">Manual JSON backup to your hard drive.</p>
@@ -200,7 +223,6 @@
                             <button onclick="handleSignoutClick()" class="w-full text-red-500 text-sm hover:underline mt-2 text-center">Disconnect Drive</button>
                         </div>
                     </div>
-
                 </div>
             </div>
         </div>
@@ -279,21 +301,15 @@
 
         async function handleGoogleCallback(resp) {
             if (resp.error) {
-                if(googleAction === 'login_auto_sync') finalizeLogin(); // If auto-sync fails, still log them in locally
-                if(googleAction === 'save_exit') finalizeLogout(); // If auth fails on exit, just log out locally
+                if(googleAction === 'login_auto_sync') finalizeLogin();
+                if(googleAction === 'save_exit') finalizeLogout(); 
                 return;
             }
             gAccessToken = resp.access_token;
-            
-            if (googleAction === 'manual_restore') {
-                await performCloudRestore();
-            } else if (googleAction === 'login_auto_sync') {
-                await performCloudRestore();
-                finalizeLogin();
-            } else if (googleAction === 'save_exit') {
-                await silentPushToDrive();
-                finalizeLogout();
-            } else if (googleAction === 'data_tab_connect') {
+            if (googleAction === 'manual_restore') { await performCloudRestore(); } 
+            else if (googleAction === 'login_auto_sync') { await performCloudRestore(); finalizeLogin(); } 
+            else if (googleAction === 'save_exit') { await silentPushToDrive(); finalizeLogout(); } 
+            else if (googleAction === 'data_tab_connect') {
                 document.getElementById('gdrive-logged-out').classList.add('hidden');
                 document.getElementById('gdrive-logged-in').classList.remove('hidden');
                 document.getElementById('gdrive-logged-in').classList.add('flex');
@@ -303,35 +319,29 @@
             }
         }
 
-        // --- CLOUD RESTORE ENGINE ---
         async function performCloudRestore() {
             try {
                 const pastDate = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString();
                 const query = `trashed=false and name contains 'StockBackup_' and createdTime > '${pastDate}'`;
                 const res = await fetch(`https://www.googleapis.com/drive/v3/files?q=${encodeURIComponent(query)}&orderBy=createdTime desc&pageSize=1&fields=files(id,name)`, { headers: { 'Authorization': 'Bearer ' + gAccessToken } });
                 const data = await res.json();
-                
                 if (data.files && data.files.length > 0) {
                     const fileId = data.files[0].id;
                     const dlRes = await fetch(`https://www.googleapis.com/drive/v3/files/${fileId}?alt=media`, { headers: { 'Authorization': 'Bearer ' + gAccessToken } });
                     const fileData = await dlRes.json();
-                    
                     if(fileData.items && fileData.users) {
-                        items = fileData.items || []; logs = fileData.logs || []; users = fileData.users;
-                        saveData();
+                        items = fileData.items || []; logs = fileData.logs || []; users = fileData.users; saveData();
                         alert("Success! Restored from cloud backup: " + data.files[0].name);
                     } else { alert("Error: File is not a valid StockManager backup."); }
                 } else { alert("No recent backups found on this Google account."); }
             } catch(e) { alert("Error communicating with Google Drive."); }
         }
 
-        // --- LOGIN & SESSION ROUTING ---
         function handleLoginEnter(e) { if(e.key === 'Enter') attemptLogin(); }
         
         function attemptLogin() {
             const u = document.getElementById('login-user').value.trim(); const p = document.getElementById('login-pass').value; const err = document.getElementById('login-error');
             const user = users.find(x => x.name.toLowerCase() === u.toLowerCase() && x.pass === p);
-            
             if(user) {
                 activeUser = user;
                 const autoSync = document.getElementById('auto-sync-cb').checked;
@@ -347,41 +357,18 @@
 
         function finalizeLogin() {
             sessionStorage.setItem('activeStockSession', JSON.stringify(activeUser)); 
-            document.getElementById('login-error').classList.add('hidden');
-            document.getElementById('login-screen').classList.add('hidden');
-            document.getElementById('app-wrapper').classList.remove('hidden');
-            document.getElementById('nav-user-badge').innerText = `${activeUser.name} [${activeUser.role}]`;
-            document.getElementById('login-pass').value = ''; 
-            document.getElementById('btn-login-main').innerText = "Log In"; document.getElementById('btn-login-main').disabled = false;
+            document.getElementById('login-error').classList.add('hidden'); document.getElementById('login-screen').classList.add('hidden'); document.getElementById('app-wrapper').classList.remove('hidden'); document.getElementById('nav-user-badge').innerText = `${activeUser.name} [${activeUser.role}]`; document.getElementById('login-pass').value = ''; document.getElementById('btn-login-main').innerText = "Log In"; document.getElementById('btn-login-main').disabled = false;
             applyPermissions(); switchView('dashboard'); renderUsersTable();
         }
 
-        // --- BUTTON TRIGGERS ---
-        function triggerManualCloudRestore() {
-            if (GOOGLE_CLIENT_ID === 'YOUR_CLIENT_ID_HERE') return alert("Insert Client ID first.");
-            googleAction = 'manual_restore';
-            tokenClient.requestAccessToken({prompt: 'consent'});
-        }
-        function triggerManualDataConnect() {
-            if (GOOGLE_CLIENT_ID === 'YOUR_CLIENT_ID_HERE') return alert("Insert Client ID first.");
-            googleAction = 'data_tab_connect';
-            tokenClient.requestAccessToken({prompt: 'consent'});
-        }
+        function triggerManualCloudRestore() { if (GOOGLE_CLIENT_ID === 'YOUR_CLIENT_ID_HERE') return alert("Insert Client ID first."); googleAction = 'manual_restore'; tokenClient.requestAccessToken({prompt: 'consent'}); }
+        function triggerManualDataConnect() { if (GOOGLE_CLIENT_ID === 'YOUR_CLIENT_ID_HERE') return alert("Insert Client ID first."); googleAction = 'data_tab_connect'; tokenClient.requestAccessToken({prompt: 'consent'}); }
 
-        // --- SAVE & EXIT LOGIC ---
         async function saveAndExit() {
-            const btn = document.getElementById('btn-save-exit');
-            const autoSync = document.getElementById('auto-sync-cb').checked;
-            
-            if (gAccessToken) {
-                btn.innerText = "Syncing..."; await silentPushToDrive(); finalizeLogout();
-            } else if (autoSync && GOOGLE_CLIENT_ID !== 'YOUR_CLIENT_ID_HERE') {
-                btn.innerText = "Syncing...";
-                googleAction = 'save_exit';
-                tokenClient.requestAccessToken({prompt: 'consent'});
-            } else {
-                finalizeLogout();
-            }
+            const btn = document.getElementById('btn-save-exit'); const autoSync = document.getElementById('auto-sync-cb').checked;
+            if (gAccessToken) { btn.innerText = "Syncing..."; await silentPushToDrive(); finalizeLogout(); } 
+            else if (autoSync && GOOGLE_CLIENT_ID !== 'YOUR_CLIENT_ID_HERE') { btn.innerText = "Syncing..."; googleAction = 'save_exit'; tokenClient.requestAccessToken({prompt: 'consent'}); } 
+            else { finalizeLogout(); }
         }
 
         async function silentPushToDrive() {
@@ -394,23 +381,16 @@
 
         function finalizeLogout() {
             activeUser = null; sessionStorage.removeItem('activeStockSession'); 
-            document.getElementById('app-wrapper').classList.add('hidden'); document.getElementById('login-screen').classList.remove('hidden');
-            document.getElementById('btn-save-exit').innerText = "Save & Exit";
-            if(gAccessToken) handleSignoutClick(); // Clean up Google session for safety
+            document.getElementById('app-wrapper').classList.add('hidden'); document.getElementById('login-screen').classList.remove('hidden'); document.getElementById('btn-save-exit').innerText = "Save & Exit";
+            if(gAccessToken) handleSignoutClick(); 
         }
 
         function handleSignoutClick() {
-            if (gAccessToken) {
-                google.accounts.oauth2.revoke(gAccessToken, () => {
-                    gAccessToken = null; document.getElementById('gdrive-logged-in').classList.add('hidden'); document.getElementById('gdrive-logged-in').classList.remove('flex'); document.getElementById('gdrive-logged-out').classList.remove('hidden'); document.getElementById('gdrive-status').innerText = 'Disconnected'; document.getElementById('gdrive-status').className = 'bg-gray-200 text-gray-600 px-2 py-1 rounded text-xs font-bold';
-                });
-            }
+            if (gAccessToken) { google.accounts.oauth2.revoke(gAccessToken, () => { gAccessToken = null; document.getElementById('gdrive-logged-in').classList.add('hidden'); document.getElementById('gdrive-logged-in').classList.remove('flex'); document.getElementById('gdrive-logged-out').classList.remove('hidden'); document.getElementById('gdrive-status').innerText = 'Disconnected'; document.getElementById('gdrive-status').className = 'bg-gray-200 text-gray-600 px-2 py-1 rounded text-xs font-bold'; }); }
         }
 
-        // --- UNIVERSAL SEARCH LOGIC ---
         function filterTable(inputId, tableId) {
-            const filter = document.getElementById(inputId).value.toUpperCase();
-            const rows = document.getElementById(tableId).getElementsByTagName("tr");
+            const filter = document.getElementById(inputId).value.toUpperCase(); const rows = document.getElementById(tableId).getElementsByTagName("tr");
             for (let i = 0; i < rows.length; i++) {
                 const tdCode = rows[i].getElementsByTagName("td")[tableId === 'master-table-body' ? 1 : (tableId === 'logs-table-body' ? 2 : 0)];
                 const tdName = rows[i].getElementsByTagName("td")[tableId === 'master-table-body' ? 2 : (tableId === 'logs-table-body' ? 3 : 1)];
@@ -421,11 +401,9 @@
             }
         }
 
-        // --- MANUAL DRIVE PUSH/PULL (DATA TAB) ---
         async function pushToDrive(event) {
             if (!gAccessToken) return alert("Not connected.");
-            const btn = event ? event.target : document.getElementById('btn-manual-push'); 
-            const originalText = btn.innerText; btn.innerText = "Uploading..."; btn.disabled = true;
+            const btn = event ? event.target : document.getElementById('btn-manual-push'); const originalText = btn.innerText; btn.innerText = "Uploading..."; btn.disabled = true;
             const success = await silentPushToDrive();
             if(success) { btn.innerText = "Success!"; btn.classList.replace('bg-green-600', 'bg-blue-600'); listDriveBackups(); } else { alert("Upload failed."); }
             setTimeout(() => { btn.innerText = originalText; btn.classList.replace('bg-blue-600', 'bg-green-600'); btn.disabled = false; }, 2000);
@@ -450,20 +428,17 @@
             } catch(e) { alert("Download error."); }
         }
 
-        // --- STANDARD APP LOGIC ---
         function checkSession() { const s = sessionStorage.getItem('activeStockSession'); if (s) { activeUser = JSON.parse(s); document.getElementById('login-screen').classList.add('hidden'); document.getElementById('app-wrapper').classList.remove('hidden'); document.getElementById('nav-user-badge').innerText = `${activeUser.name} [${activeUser.role}]`; applyPermissions(); switchView('dashboard'); renderUsersTable(); } }
         function applyPermissions() { document.querySelectorAll('.admin-only').forEach(el => activeUser.role === 'Staff' ? el.classList.add('hidden-for-staff') : el.classList.remove('hidden-for-staff')); }
         function addUser() { const n = document.getElementById('new-user-name').value.trim(); const p = document.getElementById('new-user-pass').value; const r = document.getElementById('new-user-role').value; if(!n || !p) return alert("Empty fields."); if(users.some(u => u.name.toLowerCase() === n.toLowerCase())) return alert("Username taken."); users.push({name: n, role: r, pass: p}); saveData(); document.getElementById('new-user-name').value = ''; document.getElementById('new-user-pass').value = ''; renderUsersTable(); }
         function renderUsersTable() { document.getElementById('users-table-body').innerHTML = users.map((u, i) => `<tr class="border-b hover:bg-gray-50"><td class="p-2 font-bold">${u.name}</td><td class="p-2">${u.role}</td><td class="p-2 text-gray-400 font-mono text-xs">${u.pass}</td><td class="p-2"><button onclick="deleteUser(${i})" class="text-red-500 hover:underline text-xs font-bold">Delete</button></td></tr>`).join(''); }
         function deleteUser(i) { if(users.length === 1) return alert("Cannot delete last admin."); if(users[i].name === activeUser.name) return alert("Cannot delete self."); if(confirm("Delete user?")) { users.splice(i, 1); saveData(); renderUsersTable(); } }
-
         function saveData() { localStorage.setItem('stockItems', JSON.stringify(items)); localStorage.setItem('stockLogs', JSON.stringify(logs)); localStorage.setItem('stockUsers', JSON.stringify(users)); if(activeUser) updateDashboard(); }
         function calculateCurrentStock(c) { let item = items.find(i => i.code === c); if (!item) return 0; let s = parseInt(item.openStock); logs.filter(l => l.code === c).forEach(l => { if (l.type === 'IN') s += parseInt(l.qty); if (l.type === 'OUT') s -= parseInt(l.qty); }); return s; }
 
         function updateDashboard() { const tb = document.getElementById('dashboard-table-body'); const ll = document.getElementById('low-stock-list'); const ul = document.getElementById('urgent-list'); tb.innerHTML = ''; ll.innerHTML = ''; ul.innerHTML = ''; items.forEach(i => { const cur = calculateCurrentStock(i.code); const min = parseInt(i.minStock); const low = cur <= min; const uom = i.uom || ''; tb.innerHTML += `<tr class="border-b hover:bg-gray-50"><td class="p-3 font-mono">${i.code}</td><td class="p-3 font-bold">${i.name}</td><td class="p-3 font-bold text-lg">${cur} <span class="text-xs text-gray-500 font-normal">${uom}</span></td><td class="p-3">${low ? '<span class="text-red-600 font-bold bg-red-100 px-2 rounded">LOW</span>' : '<span class="text-green-700 bg-green-100 px-2 rounded">OK</span>'}</td></tr>`; if (low) { ll.innerHTML += `<li><b>${i.name}</b> (${i.code}) - Stock: ${cur} ${uom} (Min: ${min})</li>`; if (parseInt(i.leadTime) > 5) ul.innerHTML += `<li><b>${i.name}</b> - Required: <span class="bg-red-200 text-red-800 px-1 rounded font-bold">${Math.ceil((min * 1.2) - cur)} ${uom}</span></li>`; } }); filterTable('search-dashboard', 'dashboard-table-body'); }
         function addItem() { const c = document.getElementById('new-code').value.trim(); if(!c || items.some(i => i.code === c)) return alert("Invalid code."); items.push({code: c, name: document.getElementById('new-name').value, uom: document.getElementById('new-uom').value || 'Nos', openStock: document.getElementById('new-open').value||0, minStock: document.getElementById('new-min').value||0, leadTime: document.getElementById('new-lead').value||0}); saveData(); renderMasterTable(); document.querySelectorAll('input[id^="new-"]').forEach(i => i.value = ''); }
         function renderMasterTable() { document.getElementById('master-table-body').innerHTML = items.map((i, idx) => `<tr class="border-b hover:bg-gray-50"><td class="p-2 text-center"><input type="checkbox" class="print-cb" value="${i.code}"></td><td class="p-2 font-mono">${i.code}</td><td class="p-2 font-bold">${i.name}</td><td class="p-2 text-gray-500 text-xs">${i.uom || '-'}</td><td class="p-2">${i.openStock}</td><td class="p-2">${i.minStock}</td><td class="p-2">${i.leadTime}</td><td class="p-2 text-center space-x-2"><button onclick="openEditModal('${i.code}')" class="text-blue-600 font-bold">Edit</button></td></tr>`).join(''); filterTable('search-master', 'master-table-body'); }
-        
         function deleteSelectedItems() { const s = Array.from(document.querySelectorAll('.print-cb:checked')).map(cb => cb.value); if(s.length === 0) return alert("Select at least one item."); if(confirm(`Delete ${s.length} item(s)? Logs will remain.`)) { items = items.filter(i => !s.includes(i.code)); saveData(); renderMasterTable(); } }
         function openEditModal(c) { const i = items.find(x => x.code === c); const h = logs.some(l => l.code === c); document.getElementById('edit-code').value = i.code; document.getElementById('edit-name').value = i.name; document.getElementById('edit-uom').value = i.uom || ''; document.getElementById('edit-min').value = i.minStock; document.getElementById('edit-lead').value = i.leadTime; const oInput = document.getElementById('edit-open'); oInput.value = i.openStock; if(h) { oInput.readOnly = true; oInput.classList.add('bg-gray-100'); document.getElementById('edit-open-warning').classList.remove('hidden'); } else { oInput.readOnly = false; oInput.classList.remove('bg-gray-100'); document.getElementById('edit-open-warning').classList.add('hidden'); } document.getElementById('edit-modal').classList.remove('hidden'); }
         function saveEditItem() { const c = document.getElementById('edit-code').value; let idx = items.findIndex(x => x.code === c); if(idx > -1) { items[idx].name = document.getElementById('edit-name').value; items[idx].uom = document.getElementById('edit-uom').value || 'Nos'; items[idx].minStock = document.getElementById('edit-min').value; items[idx].leadTime = document.getElementById('edit-lead').value; if(!document.getElementById('edit-open').readOnly) items[idx].openStock = document.getElementById('edit-open').value; saveData(); renderMasterTable(); closeModal('edit-modal'); } }
@@ -477,23 +452,43 @@
         function switchView(id) { document.querySelectorAll('.view-section').forEach(el => el.classList.add('hidden')); document.getElementById('view-' + id).classList.remove('hidden'); if(id === 'dashboard') updateDashboard(); if(id === 'master') renderMasterTable(); if(id === 'logs') renderLogsTable(); if(id === 'scan') { document.getElementById('scanner-input').value = ''; document.getElementById('scanner-input').focus(); } }
         function closeModal(id) { document.getElementById(id).classList.add('hidden'); }
         function toggleAllCheckboxes(m) { document.querySelectorAll('.print-cb').forEach(cb => cb.checked = m.checked); }
+
         function exportCSV(t) { let d = t === 'master' ? items.map(i => ({"Item Code": i.code, "Item Name": i.name, "UOM": i.uom || '-', "Open": i.openStock, "Min": i.minStock, "Lead": i.leadTime, "Closing": calculateCurrentStock(i.code)})) : logs.map(l => ({"Date": l.timestamp, "User": l.user, "Code": l.code, "Name": l.name || '-', "Type": l.type, "Qty": l.qty, "UOM": l.uom || '-'})); if (!d.length) return alert("No data."); const k = Object.keys(d[0]); const c = "data:text/csv;charset=utf-8," + k.join(",") + "\n" + d.map(r => k.map(x => `"${r[x]}"`).join(",")).join("\n"); const l = document.createElement("a"); l.href = encodeURI(c); l.download = `store_${t}_${new Date().toISOString().split('T')[0]}.csv`; document.body.appendChild(l); l.click(); }
         function exportLocalJSON() { const l = document.createElement("a"); l.href = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify({items, logs, users})); l.download = `inventory_backup_${new Date().toISOString().split('T')[0]}.json`; document.body.appendChild(l); l.click(); }
         function importLocalJSON(e) { const r = new FileReader(); r.onload = evt => { try { const d = JSON.parse(evt.target.result); items = d.items || []; logs = d.logs || []; users = d.users; saveData(); alert("Restored! Logging out."); finalizeLogout(); } catch(err) { alert("Invalid."); } }; if(e.target.files[0]) r.readAsText(e.target.files[0]); }
+
         function openPrintModal() { if(document.querySelectorAll('.print-cb:checked').length === 0) return alert("Select item."); document.getElementById('print-config-modal').classList.remove('hidden'); }
         
-        // --- LASER-OPTIMIZED BARCODE ENGINE ---
+        // --- PRINT ENGINE ---
         function executePrint() {
             let w = parseFloat(document.getElementById('print-width').value); let h = parseFloat(document.getElementById('print-height').value); if(w < 5) w = 5; if(w > 10) w = 10; if(h < 1.5) h = 1.5;
             const s = Array.from(document.querySelectorAll('.print-cb:checked')).map(cb => cb.value); const iToP = items.filter(i => s.includes(i.code));
             
-            document.getElementById('print-area').innerHTML = iToP.map((i, idx) => `<div class="label-item" style="width: ${w}cm; height: ${h}cm;"><div class="label-name">${i.name}</div><svg id="barcode-${idx}"></svg><div class="label-code">${i.code}</div></div>`).join('');
+            const printArea = document.getElementById('print-area');
+            printArea.innerHTML = iToP.map((i, idx) => `
+                <div class="label-item" style="width: ${w}cm; height: ${h}cm;">
+                    <div class="label-name">${i.name}</div>
+                    <svg id="barcode-${idx}"></svg>
+                    <div class="label-code">${i.code}</div>
+                </div>`).join('');
             
             setTimeout(() => { 
                 iToP.forEach((i, idx) => { 
-                    JsBarcode(`#barcode-${idx}`, i.code, { format: "CODE128", width: 2, height: (h * 37.8) - 40, displayValue: false, background: "#ffffff", lineColor: "#000000", margin: 20 }); 
+                    let bcHeight = (h * 37.8) - 45; 
+                    if (bcHeight < 15) bcHeight = 15; // Minimum safety height
+                    
+                    JsBarcode(`#barcode-${idx}`, i.code, { 
+                        format: "CODE128", width: 2, height: bcHeight, 
+                        displayValue: false, background: "#ffffff", lineColor: "#000000", margin: 15 
+                    }); 
                 }); 
-                closeModal('print-config-modal'); setTimeout(() => { window.print(); }, 500); 
+                closeModal('print-config-modal'); 
+                
+                setTimeout(() => { 
+                    window.print(); 
+                    // Clears the DOM element after printing so it doesn't linger invisibly
+                    setTimeout(() => { printArea.innerHTML = ''; }, 1000);
+                }, 500); 
             }, 100);
         }
 
