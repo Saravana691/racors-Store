@@ -10,6 +10,12 @@
     <script src="https://accounts.google.com/gsi/client" onload="initGIS()" async defer></script>
     
     <style>
+        /* Custom sleek scrollbar for Dashboard Cards */
+        .custom-scrollbar::-webkit-scrollbar { width: 6px; }
+        .custom-scrollbar::-webkit-scrollbar-track { background: transparent; }
+        .custom-scrollbar::-webkit-scrollbar-thumb { background-color: rgba(0,0,0,0.2); border-radius: 10px; }
+        .custom-scrollbar:hover::-webkit-scrollbar-thumb { background-color: rgba(0,0,0,0.4); }
+
         @media screen {
             #print-area { position: absolute; left: -9999px; top: -9999px; opacity: 0; pointer-events: none; }
         }
@@ -28,12 +34,8 @@
                 display: flex; flex-direction: row; align-items: center; justify-content: flex-start; 
                 page-break-inside: avoid; overflow: hidden; box-sizing: border-box; padding: 0.1cm; 
             }
-            .label-qr { 
-                flex-shrink: 0; display: flex; align-items: center; justify-content: center; 
-            }
-            .label-qr img, .label-qr canvas { 
-                max-width: 100%; max-height: 100%; object-fit: contain; 
-            }
+            .label-qr { flex-shrink: 0; display: flex; align-items: center; justify-content: center; }
+            .label-qr img, .label-qr canvas { max-width: 100%; max-height: 100%; object-fit: contain; }
             .label-text { 
                 flex-grow: 1; padding-left: 0.2cm; display: flex; flex-direction: column; 
                 justify-content: center; overflow: hidden; height: 100%;
@@ -44,247 +46,352 @@
                 display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; 
                 overflow: hidden; white-space: normal; word-break: break-word;
             }
-            .label-code { 
-                font-size: 10px; font-family: monospace; font-weight: bold; text-align: left; margin-top: 2px; 
-            }
+            .label-code { font-size: 10px; font-family: monospace; font-weight: bold; text-align: left; margin-top: 2px; }
         }
         #scanner-input { opacity: 0; position: absolute; z-index: -1; }
         .admin-only.hidden-for-staff { display: none !important; }
     </style>
 </head>
-<body class="bg-gray-100 text-gray-800 font-sans min-h-screen">
-
-    <div id="login-screen" class="fixed inset-0 bg-blue-900 flex items-center justify-center z-50">
-        <div class="bg-white p-8 rounded shadow-2xl w-96 text-center">
-            <h1 class="text-3xl font-bold text-blue-900 mb-2">StockManager Pro</h1>
-            <p class="text-gray-500 mb-6 text-sm">Please log in to continue</p>
-            <div class="space-y-4 text-left">
-                <div><label class="block text-sm font-bold text-gray-700">Username</label><input type="text" id="login-user" class="w-full border p-2 rounded outline-none focus:border-blue-500"></div>
-                <div><label class="block text-sm font-bold text-gray-700">Password</label><input type="password" id="login-pass" class="w-full border p-2 rounded outline-none focus:border-blue-500" onkeypress="handleLoginEnter(event)"></div>
-                
-                <div class="flex items-center gap-2 mt-2 mb-2 bg-blue-50 p-2 rounded border border-blue-100">
-                    <input type="checkbox" id="auto-sync-cb" checked class="w-4 h-4 text-blue-600 cursor-pointer">
-                    <label class="text-xs font-bold text-blue-800 cursor-pointer" for="auto-sync-cb">Auto-Sync with Google Cloud</label>
-                </div>
-                
-                <button id="btn-login-main" onclick="attemptLogin()" class="w-full bg-blue-600 text-white font-bold py-2 rounded hover:bg-blue-700 transition">Log In</button>
-                <p id="login-error" class="text-red-500 text-sm hidden text-center mt-2"></p>
-            </div>
-            
-            <div class="mt-6 border-t pt-4">
-                <button onclick="triggerManualCloudRestore()" id="btn-cloud-restore" class="w-full bg-white border border-gray-300 text-gray-700 font-bold py-2 rounded flex items-center justify-center gap-2 hover:bg-gray-50 transition shadow-sm text-sm">
-                    <svg class="w-4 h-4 text-blue-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M9 19l3 3m0 0l3-3m-3 3V10"></path></svg>
-                    Restore Data Manually (New Device)
-                </button>
-            </div>
-        </div>
-    </div>
-
-    <div id="app-wrapper" class="hidden">
-        <nav class="bg-blue-800 text-white p-4 shadow-md flex justify-between items-center no-print">
-            <div class="flex items-center"><h1 class="text-xl font-bold">StockManager</h1><span id="nav-user-badge" class="bg-blue-600 px-2 py-1 rounded text-xs font-mono ml-3"></span></div>
-            <div class="space-x-4 flex items-center text-sm font-semibold">
-                <button onclick="switchView('dashboard')" class="hover:text-blue-200">Dashboard</button>
-                <button onclick="switchView('scan')" class="hover:text-blue-200">Scan In/Out</button>
-                <button onclick="switchView('logs')" class="hover:text-blue-200">Logs</button>
-                <button onclick="switchView('master')" class="admin-only hover:text-blue-200">Item Master</button>
-                <button onclick="switchView('users')" class="admin-only hover:text-blue-200">Users</button>
-                <button onclick="switchView('data')" class="admin-only hover:text-blue-200">Data & Sync</button>
-                <button onclick="saveAndExit()" id="btn-save-exit" class="text-white bg-red-600 border border-red-700 px-3 py-1 rounded hover:bg-red-700 transition shadow-sm flex items-center gap-2">Save & Exit</button>
-            </div>
-        </nav>
-
-        <div class="container mx-auto p-4 no-print">
-            <div id="view-dashboard" class="view-section">
-                <div class="flex justify-between items-center mb-4">
-                    <h2 class="text-2xl font-bold">Stock Dashboard</h2>
-                    <input type="text" id="search-dashboard" onkeyup="filterTable('search-dashboard', 'dashboard-table-body')" placeholder="Search Code or Name..." class="border p-2 rounded shadow-sm text-sm w-64 outline-none focus:ring-2 focus:ring-blue-400">
-                </div>
-                <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
-                    <div class="bg-red-50 border-l-4 border-red-500 p-4 shadow-sm"><h3 class="font-bold text-red-700">Urgent: Order Today</h3><ul id="urgent-list" class="mt-2 text-sm text-red-600 list-disc pl-5"></ul></div>
-                    <div class="bg-yellow-50 border-l-4 border-yellow-500 p-4 shadow-sm"><h3 class="font-bold text-yellow-700">Low Stock Warning</h3><ul id="low-stock-list" class="mt-2 text-sm text-yellow-600 list-disc pl-5"></ul></div>
-                </div>
-                <div class="bg-white rounded shadow-sm overflow-x-auto">
-                    <table class="w-full text-left border-collapse">
-                        <thead><tr class="bg-gray-200"><th class="p-3">Code</th><th class="p-3">Name</th><th class="p-3">Current Stock</th><th class="p-3">Status</th></tr></thead>
-                        <tbody id="dashboard-table-body"></tbody>
-                    </table>
-                </div>
-            </div>
-
-            <div id="view-scan" class="view-section hidden">
-                <h2 class="text-2xl font-bold mb-4">Scan Item</h2>
-                <div class="bg-white p-6 rounded shadow-sm max-w-md mx-auto text-center border-t-4 border-blue-500">
-                    <p class="mb-4 text-gray-600 text-sm">Scan barcode to begin.</p>
-                    <input type="text" id="scanner-input" onkeypress="handleScan(event)" autofocus>
-                    <div id="scan-dialog" class="hidden mt-4 text-left border-t pt-4">
-                        <h3 class="text-xl font-bold text-blue-800" id="scan-item-name"></h3>
-                        <p class="text-sm text-gray-500 mb-4">Code: <span id="scan-item-code"></span> | Stock: <span id="scan-current-stock" class="font-bold"></span> <span id="scan-uom-display" class="text-xs"></span></p>
-                        <div class="flex gap-4 mb-4 bg-gray-50 p-2 rounded">
-                            <label class="flex items-center"><input type="radio" name="scanType" value="IN" checked class="mr-2"> <span class="font-bold text-green-700">IN</span></label>
-                            <label class="flex items-center ml-4"><input type="radio" name="scanType" value="OUT" class="mr-2"> <span class="font-bold text-red-700">OUT</span></label>
-                        </div>
-                        <label class="block text-sm font-bold mb-1">Quantity</label>
-                        <div class="flex items-center gap-2 mb-4">
-                            <input type="number" id="scan-qty" value="1" min="1" class="w-full border p-2 rounded font-mono text-lg outline-none focus:border-blue-500">
-                            <span id="scan-uom-label" class="font-bold text-gray-500 w-16"></span>
-                        </div>
-                        <button onclick="submitLog()" class="w-full bg-blue-800 text-white font-bold py-3 rounded hover:bg-blue-700 transition shadow-md">Confirm Transaction</button>
-                        <p id="scan-error" class="text-red-500 text-sm mt-2 hidden text-center font-bold"></p>
-                    </div>
-                </div>
-            </div>
-
-            <div id="view-master" class="view-section hidden">
-                <div class="flex justify-between items-center mb-4">
-                    <div class="flex items-center gap-4">
-                        <h2 class="text-2xl font-bold">Item Master</h2>
-                        <input type="text" id="search-master" onkeyup="filterTable('search-master', 'master-table-body')" placeholder="Search Code or Name..." class="border p-2 rounded shadow-sm text-sm w-64 outline-none focus:ring-2 focus:ring-blue-400">
-                    </div>
-                    <div class="space-x-2 flex">
-                        <button onclick="exportCSV('master')" class="bg-green-600 text-white px-3 py-1 rounded shadow-sm hover:bg-green-700 text-sm font-bold">Export CSV</button>
-                        <button onclick="openPrintModal()" class="bg-purple-600 text-white px-3 py-1 rounded shadow-sm hover:bg-purple-700 text-sm font-bold">Print Selected</button>
-                        <button onclick="deleteSelectedItems()" class="bg-red-600 text-white px-3 py-1 rounded shadow-sm hover:bg-red-700 text-sm font-bold">Delete Selected</button>
-                    </div>
-                </div>
-                <div class="bg-white p-4 rounded shadow-sm mb-6 border-l-4 border-blue-500">
-                    <div class="grid grid-cols-2 md:grid-cols-7 gap-2">
-                        <input type="text" id="new-code" placeholder="Code" class="border p-2 text-sm rounded outline-none focus:border-blue-500">
-                        <input type="text" id="new-name" placeholder="Item Name" class="border p-2 text-sm md:col-span-2 rounded outline-none focus:border-blue-500">
-                        <input type="text" id="new-uom" placeholder="UOM" class="border p-2 text-sm rounded outline-none focus:border-blue-500">
-                        <input type="number" id="new-open" placeholder="Open Stock" class="border p-2 text-sm rounded outline-none focus:border-blue-500">
-                        <input type="number" id="new-min" placeholder="Min Stock" class="border p-2 text-sm rounded outline-none focus:border-blue-500">
-                        <input type="number" id="new-lead" placeholder="Lead (Days)" class="border p-2 text-sm rounded outline-none focus:border-blue-500">
-                    </div>
-                    <button onclick="addItem()" class="mt-3 bg-blue-800 text-white px-4 py-2 rounded text-sm font-bold hover:bg-blue-700 shadow-sm">Save Item</button>
-                </div>
-                <div class="bg-white rounded shadow-sm overflow-x-auto">
-                    <table class="w-full text-left border-collapse text-sm">
-                        <thead><tr class="bg-gray-200"><th class="p-2 w-10 text-center"><input type="checkbox" onclick="toggleAllCheckboxes(this)"></th><th class="p-2">Code</th><th class="p-2">Name</th><th class="p-2">UOM</th><th class="p-2">Open Stock</th><th class="p-2">Min Level</th><th class="p-2">Lead (Days)</th><th class="p-2 text-center">Actions</th></tr></thead>
-                        <tbody id="master-table-body"></tbody>
-                    </table>
-                </div>
-            </div>
-
-            <div id="view-logs" class="view-section hidden">
-                <div class="flex justify-between items-center mb-4">
-                    <div class="flex items-center gap-4">
-                        <h2 class="text-2xl font-bold">Transaction Logs</h2>
-                        <input type="text" id="search-logs" onkeyup="filterTable('search-logs', 'logs-table-body')" placeholder="Search Code or Name..." class="border p-2 rounded shadow-sm text-sm w-64 outline-none focus:ring-2 focus:ring-blue-400">
-                    </div>
-                    <div class="space-x-2">
-                        <button onclick="exportCSV('logs')" class="bg-green-600 text-white px-3 py-1 rounded shadow-sm hover:bg-green-700 text-sm font-bold">Export CSV</button>
-                        <button onclick="openManualLogModal()" class="admin-only bg-blue-800 text-white px-3 py-1 rounded shadow-sm hover:bg-blue-700 text-sm font-bold">Add Manual Log</button>
-                    </div>
-                </div>
-                <div class="bg-white rounded shadow-sm overflow-x-auto">
-                    <table class="w-full text-left border-collapse text-sm">
-                        <thead><tr class="bg-gray-200"><th class="p-2">Date/Time</th><th class="p-2">User</th><th class="p-2">Code</th><th class="p-2">Name</th><th class="p-2">Type</th><th class="p-2">Qty</th><th class="p-2">UOM</th></tr></thead>
-                        <tbody id="logs-table-body"></tbody>
-                    </table>
-                </div>
-            </div>
-
-            <div id="view-users" class="view-section hidden">
-                <h2 class="text-2xl font-bold mb-4">User Management</h2>
-                <div class="bg-white p-4 rounded shadow-sm mb-6 max-w-2xl border-l-4 border-blue-500">
-                    <div class="flex gap-2">
-                        <input type="text" id="new-user-name" placeholder="Username" class="border p-2 rounded flex-1 outline-none focus:border-blue-500">
-                        <input type="text" id="new-user-pass" placeholder="Password" class="border p-2 rounded flex-1 outline-none focus:border-blue-500">
-                        <select id="new-user-role" class="border p-2 rounded bg-gray-50 outline-none"><option value="Staff">Staff</option><option value="Admin">Admin</option></select>
-                        <button onclick="addUser()" class="bg-blue-800 text-white px-4 py-2 rounded hover:bg-blue-700 shadow-sm font-bold">Add</button>
-                    </div>
-                </div>
-                <div class="bg-white rounded shadow-sm max-w-2xl overflow-x-auto"><table class="w-full text-left border-collapse text-sm"><tbody id="users-table-body"></tbody></table></div>
-            </div>
-
-            <div id="view-data" class="view-section hidden">
-                <h2 class="text-2xl font-bold mb-4">Data Management</h2>
-                <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
-                    <div class="bg-white p-6 rounded shadow-sm border-t-4 border-blue-500">
-                        <h3 class="text-xl font-bold mb-4">Local File Backup</h3>
-                        <p class="text-sm text-gray-600 mb-4">Manual JSON backup to your hard drive.</p>
-                        <button onclick="exportLocalJSON()" class="w-full bg-blue-50 font-bold py-2 rounded border border-blue-200 mb-3 hover:bg-blue-100 transition text-blue-800">Export PC Backup</button>
-                        <div class="relative"><input type="file" accept=".json" class="absolute inset-0 w-full h-full opacity-0 cursor-pointer" onchange="importLocalJSON(event)"><button class="w-full bg-white font-bold py-2 rounded border border-gray-300 hover:bg-gray-50 transition text-gray-700">Import PC Backup</button></div>
-                    </div>
-
-                    <div class="bg-white p-6 rounded shadow-sm border-t-4 border-green-500 flex flex-col justify-between">
-                        <div class="flex justify-between items-center mb-4">
-                            <h3 class="text-xl font-bold">Google Drive Sync</h3>
-                            <span id="gdrive-status" class="bg-gray-200 text-gray-600 px-2 py-1 rounded text-xs font-bold">Disconnected</span>
-                        </div>
-                        <div id="gdrive-logged-out">
-                            <p class="text-sm text-gray-600 mb-4">Connect to manually push/pull cloud backups.</p>
-                            <button onclick="triggerManualDataConnect()" class="w-full bg-white border border-gray-300 font-bold py-2 rounded hover:bg-gray-50 transition text-gray-700">Login to Google</button>
-                        </div>
-                        <div id="gdrive-logged-in" class="hidden flex-col gap-3">
-                            <button onclick="pushToDrive(event)" id="btn-manual-push" class="w-full bg-green-600 text-white font-bold py-2 rounded hover:bg-green-700 transition shadow-sm">Push New Backup to Drive</button>
-                            <div class="border-t pt-3 mt-2">
-                                <div class="flex justify-between items-center mb-2"><p class="text-xs font-bold text-gray-500 uppercase">Recent Backups (48 Hrs)</p><button onclick="listDriveBackups()" class="text-blue-600 hover:underline text-xs">Refresh</button></div>
-                                <ul id="drive-backup-list" class="text-sm border rounded divide-y bg-gray-50 max-h-40 overflow-y-auto"><li class="p-2 text-center text-gray-500 text-xs">Loading backups...</li></ul>
-                            </div>
-                            <button onclick="handleSignoutClick()" class="w-full text-red-500 text-sm hover:underline mt-2 text-center">Disconnect Drive</button>
-                        </div>
-                    </div>
-                </div>
-                
-                <div class="bg-red-50 p-6 rounded shadow-sm border-t-4 border-red-600 mt-6">
-                    <h3 class="text-xl font-bold text-red-700 mb-2">Danger Zone: System Reset</h3>
-                    <p class="text-sm text-red-600 mb-4">This will permanently delete all Items, Logs, and Users from this device. It cannot be undone without a PC Backup file.</p>
-                    <button onclick="factoryReset()" class="bg-red-600 text-white font-bold py-2 px-6 rounded hover:bg-red-700 shadow-sm transition">Factory Reset Data</button>
-                </div>
-            </div>
-        </div>
-    </div>
-
-    <div id="manual-log-modal" class="hidden fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center no-print z-50">
-        <div class="bg-white p-6 rounded shadow-lg w-96 border-t-4 border-yellow-500">
-            <h3 class="text-xl font-bold mb-4">Manual Adjustment</h3>
-            <div class="space-y-3">
-                <div><label class="block text-sm font-bold">Item</label><select id="manual-item-select" class="w-full border p-2 rounded outline-none"></select></div>
-                <div><label class="block text-sm font-bold">Type</label><select id="manual-type-select" class="w-full border p-2 rounded bg-gray-50 outline-none"><option value="IN">IN (Add)</option><option value="OUT">OUT (Remove)</option></select></div>
-                <div><label class="block text-sm font-bold">Qty</label><input type="number" id="manual-qty" min="1" value="1" class="w-full border p-2 rounded font-mono outline-none focus:border-yellow-500"></div>
-            </div>
-            <div class="mt-6 flex justify-end gap-2"><button onclick="closeModal('manual-log-modal')" class="bg-gray-200 px-4 py-2 rounded font-bold text-gray-700 hover:bg-gray-300">Cancel</button><button onclick="submitManualLog()" class="bg-yellow-600 text-white px-4 py-2 rounded font-bold shadow hover:bg-yellow-700">Force Entry</button></div>
-        </div>
-    </div>
-
-    <div id="edit-modal" class="hidden fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center no-print z-50">
-        <div class="bg-white p-6 rounded shadow-lg w-96 border-t-4 border-blue-500">
-            <h3 class="text-xl font-bold mb-4">Edit Item</h3>
-            <div class="space-y-3">
-                <div><label class="block text-sm font-bold text-gray-500">Code (Locked)</label><input type="text" id="edit-code" readonly class="w-full border p-2 rounded bg-gray-100 text-gray-500 cursor-not-allowed"></div>
-                <div><label class="block text-sm font-bold">Item Name</label><input type="text" id="edit-name" class="w-full border p-2 rounded outline-none focus:border-blue-500"></div>
-                <div class="grid grid-cols-2 gap-2">
-                    <div><label class="block text-sm font-bold">Opening Stock</label><input type="number" id="edit-open" class="w-full border p-2 rounded outline-none focus:border-blue-500"></div>
-                    <div><label class="block text-sm font-bold">UOM</label><input type="text" id="edit-uom" class="w-full border p-2 rounded outline-none focus:border-blue-500"></div>
-                </div>
-                <p id="edit-open-warning" class="text-xs text-red-500 hidden bg-red-50 p-1 rounded">Opening Stock Locked.</p>
-                <div class="grid grid-cols-2 gap-2"><div><label class="text-sm font-bold">Min</label><input type="number" id="edit-min" class="w-full border p-2 rounded outline-none focus:border-blue-500"></div><div><label class="text-sm font-bold">Lead</label><input type="number" id="edit-lead" class="w-full border p-2 rounded outline-none focus:border-blue-500"></div></div>
-            </div>
-            <div class="mt-6 flex justify-end gap-2"><button onclick="closeModal('edit-modal')" class="bg-gray-200 px-4 py-2 rounded font-bold text-gray-700 hover:bg-gray-300">Cancel</button><button onclick="saveEditItem()" class="bg-blue-800 text-white px-4 py-2 rounded font-bold shadow hover:bg-blue-700">Update</button></div>
-        </div>
-    </div>
-
-    <div id="print-config-modal" class="hidden fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center no-print z-50">
-        <div class="bg-white p-6 rounded shadow-lg w-96 border-t-4 border-purple-500">
-            <h3 class="text-xl font-bold mb-4">Print Configuration</h3>
-            <div class="grid grid-cols-2 gap-4 mb-4">
-                <div><label class="text-sm font-bold">Width (cm)</label><input type="number" id="print-width" value="5" class="w-full border p-2 text-center outline-none focus:border-purple-500"></div>
-                <div><label class="text-sm font-bold">Height (cm)</label><input type="number" id="print-height" value="1.5" class="w-full border p-2 text-center outline-none focus:border-purple-500"></div>
-            </div>
-            <div class="flex justify-end gap-2"><button onclick="closeModal('print-config-modal')" class="bg-gray-200 px-4 py-2 rounded font-bold text-gray-700 hover:bg-gray-300">Cancel</button><button onclick="executePrint()" class="bg-purple-600 text-white px-4 py-2 rounded font-bold shadow hover:bg-purple-700">Print</button></div>
-        </div>
-    </div>
-
-    <div id="print-area" class="label-grid"></div>
+<body class="bg-gray-100 text-gray-800 font-sans min-h-screen selection:bg-blue-200">
 
     <script>
         /* =========================================================================
            YOUR GOOGLE CLIENT ID GOES HERE
            ========================================================================= */
         const GOOGLE_CLIENT_ID = '344270645228-n27js5m9vctohogghuk71d7oaken60kb.apps.googleusercontent.com';
+    </script>
 
+    <div id="login-screen" class="fixed inset-0 bg-gradient-to-br from-blue-900 to-blue-800 flex items-center justify-center z-50">
+        <div class="bg-white p-8 rounded-xl shadow-2xl w-96 text-center border-t-4 border-blue-500">
+            <h1 class="text-3xl font-extrabold text-blue-900 mb-2 tracking-tight">StockManager Pro</h1>
+            <p class="text-gray-500 mb-6 text-sm font-medium">Secure Access Portal</p>
+            <div class="space-y-4 text-left">
+                <div><label class="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-1">Username</label><input type="text" id="login-user" class="w-full border-2 border-gray-200 p-2 rounded-lg outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-200 transition-all bg-gray-50 focus:bg-white"></div>
+                <div><label class="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-1">Password</label><input type="password" id="login-pass" class="w-full border-2 border-gray-200 p-2 rounded-lg outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-200 transition-all bg-gray-50 focus:bg-white" onkeypress="handleLoginEnter(event)"></div>
+                
+                <div class="flex items-center gap-2 mt-2 mb-2 bg-blue-50 p-3 rounded-lg border border-blue-100">
+                    <input type="checkbox" id="auto-sync-cb" checked class="w-4 h-4 text-blue-600 cursor-pointer rounded">
+                    <label class="text-xs font-bold text-blue-800 cursor-pointer" for="auto-sync-cb">Auto-Sync with Google Cloud</label>
+                </div>
+                
+                <button id="btn-login-main" onclick="attemptLogin()" class="w-full bg-blue-600 text-white font-bold py-3 rounded-lg hover:bg-blue-700 shadow-md hover:shadow-lg transition-all transform hover:-translate-y-0.5">Log In</button>
+                <p id="login-error" class="text-red-500 text-sm hidden text-center mt-2 font-bold bg-red-50 py-1 rounded"></p>
+            </div>
+            
+            <div class="mt-6 border-t border-gray-100 pt-4">
+                <button onclick="triggerManualCloudRestore()" id="btn-cloud-restore" class="w-full bg-white border-2 border-gray-200 text-gray-700 font-bold py-2.5 rounded-lg flex items-center justify-center gap-2 hover:bg-gray-50 hover:border-gray-300 transition-all shadow-sm text-sm">
+                    <svg class="w-4 h-4 text-blue-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M9 19l3 3m0 0l3-3m-3 3V10"></path></svg>
+                    Restore Data Manually
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <div id="app-wrapper" class="hidden flex flex-col h-screen">
+        
+        <nav class="bg-blue-900 text-white p-3 shadow-lg flex justify-between items-center no-print z-10 relative">
+            <div class="flex items-center ml-2">
+                <div class="bg-white text-blue-900 font-black px-2 py-1 rounded shadow-sm mr-2 text-lg">SM</div>
+                <h1 class="text-xl font-extrabold tracking-tight hidden sm:block">StockManager</h1>
+                <span id="nav-user-badge" class="bg-blue-700 px-3 py-1 rounded-full text-xs font-bold tracking-wider ml-4 shadow-inner border border-blue-600"></span>
+            </div>
+            <div class="flex space-x-2 items-center text-sm font-semibold overflow-x-auto pr-2 custom-scrollbar">
+                <button id="nav-dashboard" onclick="switchView('dashboard')" class="nav-btn bg-blue-800 text-blue-100 px-4 py-2 rounded-lg shadow-sm hover:bg-blue-700 transition-all border border-blue-800 hover:border-blue-600">Dashboard</button>
+                <button id="nav-scan" onclick="switchView('scan')" class="nav-btn bg-blue-800 text-blue-100 px-4 py-2 rounded-lg shadow-sm hover:bg-blue-700 transition-all border border-blue-800 hover:border-blue-600">Scan In/Out</button>
+                <button id="nav-logs" onclick="switchView('logs')" class="nav-btn bg-blue-800 text-blue-100 px-4 py-2 rounded-lg shadow-sm hover:bg-blue-700 transition-all border border-blue-800 hover:border-blue-600">Logs</button>
+                <button id="nav-master" onclick="switchView('master')" class="nav-btn admin-only bg-blue-800 text-blue-100 px-4 py-2 rounded-lg shadow-sm hover:bg-blue-700 transition-all border border-blue-800 hover:border-blue-600">Item Master</button>
+                <button id="nav-users" onclick="switchView('users')" class="nav-btn admin-only bg-blue-800 text-blue-100 px-4 py-2 rounded-lg shadow-sm hover:bg-blue-700 transition-all border border-blue-800 hover:border-blue-600">Users</button>
+                <button id="nav-data" onclick="switchView('data')" class="nav-btn admin-only bg-blue-800 text-blue-100 px-4 py-2 rounded-lg shadow-sm hover:bg-blue-700 transition-all border border-blue-800 hover:border-blue-600">Data & Sync</button>
+                
+                <div class="w-px h-6 bg-blue-700 mx-1"></div> <button onclick="saveAndExit()" id="btn-save-exit" class="bg-red-600 text-white px-4 py-2 rounded-lg shadow-md hover:bg-red-500 transition-all border border-red-700 flex items-center gap-2 whitespace-nowrap">
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1"></path></svg>
+                    Save & Exit
+                </button>
+            </div>
+        </nav>
+
+        <div class="flex-grow overflow-auto p-4 md:p-6 container mx-auto max-w-7xl no-print">
+            
+            <div id="view-dashboard" class="view-section">
+                <div class="flex flex-col md:flex-row justify-between items-start md:items-center mb-6 gap-4">
+                    <h2 class="text-3xl font-extrabold text-gray-800">Stock Dashboard</h2>
+                    <div class="relative w-full md:w-80">
+                        <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none"><svg class="h-5 w-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path></svg></div>
+                        <input type="text" id="search-dashboard" onkeyup="filterTable('search-dashboard', 'dashboard-table-body')" placeholder="Search Code or Name..." class="w-full border-2 border-gray-300 py-2.5 pl-10 pr-4 rounded-xl shadow-sm text-sm outline-none focus:ring-4 focus:ring-blue-100 focus:border-blue-500 transition-all bg-white">
+                    </div>
+                </div>
+                
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
+                    <div class="bg-white border border-red-200 rounded-xl shadow-sm overflow-hidden flex flex-col h-64">
+                        <div class="bg-red-50 border-b border-red-100 p-3 flex justify-between items-center">
+                            <h3 class="font-bold text-red-800 flex items-center gap-2"><svg class="w-5 h-5 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"></path></svg> Urgent: Order Today</h3>
+                            <span class="text-xs font-bold bg-red-200 text-red-800 px-2 py-1 rounded-full" id="urgent-count">0</span>
+                        </div>
+                        <div class="p-3 overflow-y-auto custom-scrollbar flex-grow bg-white">
+                            <ul id="urgent-list" class="text-sm text-red-700 list-none space-y-2"></ul>
+                        </div>
+                    </div>
+                    
+                    <div class="bg-white border border-yellow-200 rounded-xl shadow-sm overflow-hidden flex flex-col h-64">
+                        <div class="bg-yellow-50 border-b border-yellow-100 p-3 flex justify-between items-center">
+                            <h3 class="font-bold text-yellow-800 flex items-center gap-2"><svg class="w-5 h-5 text-yellow-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg> Low Stock Warning</h3>
+                            <span class="text-xs font-bold bg-yellow-200 text-yellow-800 px-2 py-1 rounded-full" id="low-count">0</span>
+                        </div>
+                        <div class="p-3 overflow-y-auto custom-scrollbar flex-grow bg-white">
+                            <ul id="low-stock-list" class="text-sm text-yellow-700 list-none space-y-2"></ul>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="bg-white rounded-xl shadow-md overflow-hidden border border-gray-200">
+                    <div class="overflow-x-auto custom-scrollbar">
+                        <table class="w-full text-left border-collapse whitespace-nowrap">
+                            <thead><tr class="bg-gray-800 text-white text-sm tracking-wider uppercase"><th class="p-4 font-semibold">Code</th><th class="p-4 font-semibold">Name</th><th class="p-4 font-semibold">Current Stock</th><th class="p-4 font-semibold">Status</th></tr></thead>
+                            <tbody id="dashboard-table-body" class="text-gray-700"></tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+
+            <div id="view-scan" class="view-section hidden">
+                <div class="flex items-center gap-3 mb-6">
+                    <div class="bg-blue-100 p-2 rounded-lg"><svg class="w-6 h-6 text-blue-700" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v1m6 11h2m-6 0h-2v4m0-11v3m0 0h.01M12 12h4.01M16 20h4M4 12h4m12 0h.01M5 8h2a1 1 0 001-1V5a1 1 0 00-1-1H5a1 1 0 00-1 1v2a1 1 0 001 1zm12 0h2a1 1 0 001-1V5a1 1 0 00-1-1h-2a1 1 0 00-1 1v2a1 1 0 001 1zM5 20h2a1 1 0 001-1v-2a1 1 0 00-1-1H5a1 1 0 00-1 1v2a1 1 0 001 1z"></path></svg></div>
+                    <h2 class="text-3xl font-extrabold text-gray-800">Scan Operation</h2>
+                </div>
+                <div class="bg-white p-8 rounded-xl shadow-lg max-w-md mx-auto text-center border-t-4 border-blue-600 relative overflow-hidden">
+                    <div class="absolute inset-0 opacity-5 pointer-events-none" style="background-image: radial-gradient(#2563eb 1px, transparent 1px); background-size: 20px 20px;"></div>
+                    
+                    <p class="mb-6 text-gray-500 font-bold tracking-wide uppercase text-sm">Waiting for Scanner input...</p>
+                    <input type="text" id="scanner-input" onkeypress="handleScan(event)" autofocus class="opacity-0 absolute z-[-1]">
+                    
+                    <div class="w-32 h-32 mx-auto border-4 border-dashed border-gray-300 rounded-xl mb-4 flex items-center justify-center bg-gray-50 transition-all duration-500" id="scan-anim-box">
+                        <svg class="w-12 h-12 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z"></path></svg>
+                    </div>
+                    
+                    <div id="scan-dialog" class="hidden mt-6 text-left border-t border-gray-100 pt-6 relative z-10">
+                        <div class="bg-blue-50 p-4 rounded-lg mb-6 border border-blue-100">
+                            <h3 class="text-xl font-black text-blue-900 leading-tight" id="scan-item-name"></h3>
+                            <p class="text-sm text-blue-600 font-medium mt-1">Code: <span id="scan-item-code" class="font-mono bg-white px-1 rounded border border-blue-200"></span></p>
+                            <p class="text-md text-gray-800 mt-3 pt-3 border-t border-blue-200">Current Stock: <span id="scan-current-stock" class="font-black text-xl"></span> <span id="scan-uom-display" class="text-sm font-bold text-gray-500 uppercase"></span></p>
+                        </div>
+                        
+                        <div class="flex gap-4 mb-5 bg-gray-50 p-2 rounded-lg border border-gray-200">
+                            <label class="flex-1 flex items-center justify-center p-2 rounded cursor-pointer hover:bg-white transition-colors border border-transparent hover:border-green-200"><input type="radio" name="scanType" value="IN" checked class="mr-2 w-4 h-4 text-green-600"><span class="font-black text-green-700 text-lg">IN</span></label>
+                            <div class="w-px bg-gray-200 my-2"></div>
+                            <label class="flex-1 flex items-center justify-center p-2 rounded cursor-pointer hover:bg-white transition-colors border border-transparent hover:border-red-200"><input type="radio" name="scanType" value="OUT" class="mr-2 w-4 h-4 text-red-600"><span class="font-black text-red-700 text-lg">OUT</span></label>
+                        </div>
+                        
+                        <label class="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-1">Transaction Quantity</label>
+                        <div class="flex items-center gap-3 mb-6">
+                            <input type="number" id="scan-qty" value="1" min="1" class="w-full border-2 border-gray-300 p-3 rounded-xl font-mono text-2xl font-bold outline-none focus:border-blue-500 focus:ring-4 focus:ring-blue-100 text-center shadow-inner transition-all">
+                            <span id="scan-uom-label" class="font-bold text-gray-400 text-sm uppercase w-12 text-center bg-gray-100 p-2 rounded-lg border border-gray-200"></span>
+                        </div>
+                        
+                        <button onclick="submitLog()" class="w-full bg-gradient-to-r from-blue-700 to-blue-600 text-white font-black text-lg py-4 rounded-xl shadow-lg hover:shadow-xl hover:from-blue-800 hover:to-blue-700 transition-all transform hover:-translate-y-1">Confirm Transaction</button>
+                        <p id="scan-error" class="text-red-600 bg-red-50 border border-red-200 p-2 rounded-lg text-sm mt-4 hidden text-center font-bold shadow-sm"></p>
+                    </div>
+                </div>
+            </div>
+
+            <div id="view-master" class="view-section hidden">
+                <div class="flex flex-col md:flex-row justify-between items-start md:items-center mb-6 gap-4">
+                    <div class="flex items-center gap-4 w-full md:w-auto">
+                        <h2 class="text-3xl font-extrabold text-gray-800 hidden md:block">Item Master</h2>
+                        <div class="relative w-full md:w-80">
+                            <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none"><svg class="h-5 w-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path></svg></div>
+                            <input type="text" id="search-master" onkeyup="filterTable('search-master', 'master-table-body')" placeholder="Search Code or Name..." class="w-full border-2 border-gray-300 py-2.5 pl-10 pr-4 rounded-xl shadow-sm text-sm outline-none focus:ring-4 focus:ring-blue-100 focus:border-blue-500 transition-all bg-white">
+                        </div>
+                    </div>
+                    <div class="flex flex-wrap gap-2 w-full md:w-auto">
+                        <button onclick="exportCSV('master')" class="flex-1 md:flex-none bg-green-600 text-white px-4 py-2 rounded-lg shadow border border-green-700 hover:bg-green-500 transition-all text-sm font-bold flex items-center justify-center gap-1"><svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path></svg> CSV</button>
+                        <button onclick="openPrintModal()" class="flex-1 md:flex-none bg-purple-600 text-white px-4 py-2 rounded-lg shadow border border-purple-700 hover:bg-purple-500 transition-all text-sm font-bold flex items-center justify-center gap-1"><svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z"></path></svg> Print</button>
+                        <button onclick="deleteSelectedItems()" class="flex-1 md:flex-none bg-red-600 text-white px-4 py-2 rounded-lg shadow border border-red-700 hover:bg-red-500 transition-all text-sm font-bold flex items-center justify-center gap-1"><svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path></svg> Delete</button>
+                    </div>
+                </div>
+                
+                <div class="bg-gray-50 p-5 rounded-xl shadow-inner mb-6 border border-gray-200">
+                    <h3 class="text-sm font-bold text-gray-500 uppercase tracking-wider mb-3">Add New Item</h3>
+                    <div class="grid grid-cols-2 md:grid-cols-7 gap-3">
+                        <input type="text" id="new-code" placeholder="Code (Unique)" class="border-2 border-gray-300 p-2 text-sm rounded-lg outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100 bg-white">
+                        <input type="text" id="new-name" placeholder="Item Full Name" class="border-2 border-gray-300 p-2 text-sm md:col-span-2 rounded-lg outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100 bg-white">
+                        <input type="text" id="new-uom" placeholder="UOM (e.g. Nos)" class="border-2 border-gray-300 p-2 text-sm rounded-lg outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100 bg-white">
+                        <input type="number" id="new-open" placeholder="Opening Stock" class="border-2 border-gray-300 p-2 text-sm rounded-lg outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100 bg-white">
+                        <input type="number" id="new-min" placeholder="Min Alert Level" class="border-2 border-gray-300 p-2 text-sm rounded-lg outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100 bg-white">
+                        <input type="number" id="new-lead" placeholder="Lead Time (Days)" class="border-2 border-gray-300 p-2 text-sm rounded-lg outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100 bg-white">
+                    </div>
+                    <div class="flex justify-end mt-4">
+                        <button onclick="addItem()" class="bg-blue-700 text-white px-6 py-2 rounded-lg text-sm font-bold hover:bg-blue-600 shadow-md transition-all flex items-center gap-2"><svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6v6m0 0v6m0-6h6m-6 0H6"></path></svg> Save Item to Database</button>
+                    </div>
+                </div>
+
+                <div class="bg-white rounded-xl shadow-md overflow-hidden border border-gray-200">
+                    <div class="overflow-x-auto custom-scrollbar">
+                        <table class="w-full text-left border-collapse whitespace-nowrap text-sm">
+                            <thead><tr class="bg-gray-800 text-white tracking-wider uppercase text-xs"><th class="p-3 w-10 text-center"><input type="checkbox" onclick="toggleAllCheckboxes(this)" class="w-4 h-4 rounded cursor-pointer accent-blue-500"></th><th class="p-3 font-semibold">Code</th><th class="p-3 font-semibold">Name</th><th class="p-3 font-semibold">UOM</th><th class="p-3 font-semibold">Open Stock</th><th class="p-3 font-semibold">Min Level</th><th class="p-3 font-semibold">Lead (Days)</th><th class="p-3 font-semibold text-center">Actions</th></tr></thead>
+                            <tbody id="master-table-body" class="text-gray-700"></tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+
+            <div id="view-logs" class="view-section hidden">
+                <div class="flex flex-col md:flex-row justify-between items-start md:items-center mb-6 gap-4">
+                    <div class="flex items-center gap-4 w-full md:w-auto">
+                        <h2 class="text-3xl font-extrabold text-gray-800 hidden md:block">Transaction Logs</h2>
+                        <div class="relative w-full md:w-80">
+                            <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none"><svg class="h-5 w-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path></svg></div>
+                            <input type="text" id="search-logs" onkeyup="filterTable('search-logs', 'logs-table-body')" placeholder="Search Code or Name..." class="w-full border-2 border-gray-300 py-2.5 pl-10 pr-4 rounded-xl shadow-sm text-sm outline-none focus:ring-4 focus:ring-blue-100 focus:border-blue-500 transition-all bg-white">
+                        </div>
+                    </div>
+                    <div class="space-x-2 flex w-full md:w-auto">
+                        <button onclick="exportCSV('logs')" class="flex-1 md:flex-none bg-green-600 text-white px-4 py-2 rounded-lg shadow border border-green-700 hover:bg-green-500 transition-all text-sm font-bold flex items-center justify-center gap-1"><svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path></svg> CSV</button>
+                        <button onclick="openManualLogModal()" class="admin-only flex-1 md:flex-none bg-blue-800 text-white px-4 py-2 rounded-lg shadow border border-blue-900 hover:bg-blue-700 transition-all text-sm font-bold flex items-center justify-center gap-1"><svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6v6m0 0v6m0-6h6m-6 0H6"></path></svg> Add Manual Log</button>
+                    </div>
+                </div>
+                <div class="bg-white rounded-xl shadow-md overflow-hidden border border-gray-200">
+                    <div class="overflow-x-auto custom-scrollbar">
+                        <table class="w-full text-left border-collapse whitespace-nowrap text-sm">
+                            <thead><tr class="bg-gray-800 text-white tracking-wider uppercase text-xs"><th class="p-3 font-semibold">Date/Time</th><th class="p-3 font-semibold">User</th><th class="p-3 font-semibold">Code</th><th class="p-3 font-semibold">Name</th><th class="p-3 font-semibold">Type</th><th class="p-3 font-semibold">Qty</th><th class="p-3 font-semibold">UOM</th></tr></thead>
+                            <tbody id="logs-table-body" class="text-gray-700"></tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+
+            <div id="view-users" class="view-section hidden max-w-4xl mx-auto">
+                <div class="flex items-center gap-3 mb-6">
+                    <div class="bg-blue-100 p-2 rounded-lg"><svg class="w-6 h-6 text-blue-700" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z"></path></svg></div>
+                    <h2 class="text-3xl font-extrabold text-gray-800">User Management</h2>
+                </div>
+                
+                <div class="bg-white p-6 rounded-xl shadow-md mb-6 border border-gray-200">
+                    <h3 class="text-sm font-bold text-gray-500 uppercase tracking-wider mb-4">Create New Account</h3>
+                    <div class="flex flex-col sm:flex-row gap-3">
+                        <input type="text" id="new-user-name" placeholder="Username" class="border-2 border-gray-300 p-3 rounded-lg flex-1 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100 bg-gray-50 focus:bg-white transition-all">
+                        <input type="text" id="new-user-pass" placeholder="Password" class="border-2 border-gray-300 p-3 rounded-lg flex-1 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100 bg-gray-50 focus:bg-white transition-all">
+                        <select id="new-user-role" class="border-2 border-gray-300 p-3 rounded-lg bg-gray-50 outline-none focus:border-blue-500 focus:bg-white transition-all font-bold text-gray-700"><option value="Staff">Role: Staff</option><option value="Admin">Role: Admin</option></select>
+                        <button onclick="addUser()" class="bg-blue-700 text-white px-8 py-3 rounded-lg hover:bg-blue-600 shadow-md font-bold transition-all whitespace-nowrap">Create User</button>
+                    </div>
+                </div>
+                <div class="bg-white rounded-xl shadow-md overflow-hidden border border-gray-200">
+                    <div class="overflow-x-auto custom-scrollbar">
+                        <table class="w-full text-left border-collapse text-sm">
+                            <thead><tr class="bg-gray-800 text-white uppercase text-xs tracking-wider"><th class="p-4 font-semibold">Username</th><th class="p-4 font-semibold">System Role</th><th class="p-4 font-semibold">Password Key</th><th class="p-4 font-semibold text-right">Access Control</th></tr></thead>
+                            <tbody id="users-table-body" class="text-gray-700"></tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+
+            <div id="view-data" class="view-section hidden max-w-5xl mx-auto">
+                <div class="flex items-center gap-3 mb-6">
+                    <div class="bg-blue-100 p-2 rounded-lg"><svg class="w-6 h-6 text-blue-700" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 7v10c0 2.21 3.582 4 8 4s8-1.79 8-4V7M4 7c0 2.21 3.582 4 8 4s8-1.79 8-4M4 7c0-2.21 3.582-4 8-4s8 1.79 8 4m0 5c0 2.21-3.582 4-8 4s-8-1.79-8-4"></path></svg></div>
+                    <h2 class="text-3xl font-extrabold text-gray-800">Database & Cloud Sync</h2>
+                </div>
+                
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <div class="bg-white p-6 rounded-xl shadow-md border border-gray-200 flex flex-col">
+                        <div class="flex items-center gap-2 mb-2"><svg class="w-5 h-5 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 17v-2m3 2v-4m3 4v-6m2 10H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path></svg><h3 class="text-lg font-bold text-gray-800">Hard Drive Backup</h3></div>
+                        <p class="text-xs text-gray-500 mb-6 font-medium">Generate or restore a physical .JSON database file to your local machine.</p>
+                        
+                        <div class="mt-auto space-y-3">
+                            <button onclick="exportLocalJSON()" class="w-full bg-blue-50 font-bold py-3 rounded-lg border-2 border-blue-200 hover:bg-blue-100 hover:border-blue-300 transition-all text-blue-800 shadow-sm flex justify-center items-center gap-2"><svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"></path></svg> Export Local File</button>
+                            <div class="relative">
+                                <input type="file" accept=".json" class="absolute inset-0 w-full h-full opacity-0 cursor-pointer" onchange="importLocalJSON(event)">
+                                <button class="w-full bg-white font-bold py-3 rounded-lg border-2 border-gray-300 hover:bg-gray-50 transition-all text-gray-700 shadow-sm flex justify-center items-center gap-2"><svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12"></path></svg> Import Local File</button>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="bg-white p-6 rounded-xl shadow-md border-t-4 border-t-green-500 border border-gray-200 flex flex-col justify-between">
+                        <div>
+                            <div class="flex justify-between items-center mb-2">
+                                <div class="flex items-center gap-2"><svg class="w-5 h-5 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 15a4 4 0 004 4h9a5 5 0 10-.1-9.999 5.002 5.002 0 10-9.78 2.096A4.001 4.001 0 003 15z"></path></svg><h3 class="text-lg font-bold text-gray-800">Google Drive Sync</h3></div>
+                                <span id="gdrive-status" class="bg-gray-100 border border-gray-300 text-gray-600 px-3 py-1 rounded-full text-xs font-bold tracking-wide uppercase shadow-inner">Offline</span>
+                            </div>
+                            <p class="text-xs text-gray-500 mb-4 font-medium">Connect to securely push or pull database snapshots via cloud.</p>
+                        </div>
+                        
+                        <div id="gdrive-logged-out" class="mt-auto">
+                            <button onclick="triggerManualDataConnect()" class="w-full bg-gradient-to-r from-green-600 to-green-500 text-white border border-green-700 font-bold py-3 rounded-lg hover:from-green-700 hover:to-green-600 transition-all shadow-md flex justify-center items-center gap-2">
+                                Connect Securely to Google
+                            </button>
+                        </div>
+                        
+                        <div id="gdrive-logged-in" class="hidden flex-col gap-4 mt-auto">
+                            <button onclick="pushToDrive(event)" id="btn-manual-push" class="w-full bg-blue-600 text-white font-bold py-3 rounded-lg hover:bg-blue-700 transition-all shadow-md flex justify-center items-center gap-2"><svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"></path></svg> Force Push New Snapshot</button>
+                            
+                            <div class="border border-gray-200 rounded-lg overflow-hidden bg-gray-50 shadow-inner">
+                                <div class="bg-gray-200 px-3 py-2 flex justify-between items-center border-b border-gray-300">
+                                    <p class="text-xs font-bold text-gray-600 uppercase tracking-wider">Cloud Archives (48 Hrs)</p>
+                                    <button onclick="listDriveBackups()" class="text-blue-600 hover:text-blue-800 text-xs font-bold flex items-center gap-1"><svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path></svg> Refresh</button>
+                                </div>
+                                <ul id="drive-backup-list" class="text-sm divide-y divide-gray-200 max-h-40 overflow-y-auto custom-scrollbar bg-white"><li class="p-4 text-center text-gray-400 text-xs font-bold tracking-widest uppercase animate-pulse">Loading archives...</li></ul>
+                            </div>
+                            
+                            <button onclick="handleSignoutClick()" class="w-full text-gray-500 font-bold text-xs hover:text-red-600 transition-colors uppercase tracking-widest py-1">Disconnect Session</button>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="bg-white p-6 rounded-xl shadow-md border-t-4 border-t-red-600 border border-gray-200 mt-6 flex flex-col md:flex-row items-center justify-between gap-4">
+                    <div>
+                        <h3 class="text-lg font-black text-red-700 mb-1 flex items-center gap-2"><svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"></path></svg> Danger Zone: Factory Reset</h3>
+                        <p class="text-sm text-gray-600 font-medium">Permanently annihilates all local items, logs, and custom user profiles.</p>
+                    </div>
+                    <button onclick="factoryReset()" class="bg-red-600 text-white font-bold py-3 px-8 rounded-lg hover:bg-red-700 shadow-md transition-all whitespace-nowrap border border-red-800">Initiate Wipe Protocol</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div id="manual-log-modal" class="hidden fixed inset-0 bg-black bg-opacity-60 flex items-center justify-center no-print z-50 backdrop-blur-sm">
+        <div class="bg-white p-6 rounded-xl shadow-2xl w-[400px] border-t-4 border-yellow-500 transform transition-all">
+            <h3 class="text-xl font-black text-gray-800 mb-4">Manual Adjustment Entry</h3>
+            <div class="space-y-4">
+                <div><label class="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-1">Target Item</label><select id="manual-item-select" class="w-full border-2 border-gray-300 p-2.5 rounded-lg outline-none focus:border-yellow-500 focus:ring-2 focus:ring-yellow-100 bg-gray-50 font-medium"></select></div>
+                <div><label class="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-1">Transaction Type</label><select id="manual-type-select" class="w-full border-2 border-gray-300 p-2.5 rounded-lg bg-gray-50 outline-none focus:border-yellow-500 focus:ring-2 focus:ring-yellow-100 font-bold"><option value="IN">IN (Add Stock)</option><option value="OUT">OUT (Remove Stock)</option></select></div>
+                <div><label class="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-1">Quantity</label><input type="number" id="manual-qty" min="1" value="1" class="w-full border-2 border-gray-300 p-2.5 rounded-lg font-mono text-lg outline-none focus:border-yellow-500 focus:ring-2 focus:ring-yellow-100 bg-white"></div>
+            </div>
+            <div class="mt-8 flex justify-end gap-3"><button onclick="closeModal('manual-log-modal')" class="bg-gray-100 border border-gray-300 px-5 py-2 rounded-lg font-bold text-gray-600 hover:bg-gray-200 transition-colors">Cancel</button><button onclick="submitManualLog()" class="bg-yellow-500 text-yellow-900 border border-yellow-600 px-6 py-2 rounded-lg font-black shadow-md hover:bg-yellow-400 transition-all">Force Commit</button></div>
+        </div>
+    </div>
+
+    <div id="edit-modal" class="hidden fixed inset-0 bg-black bg-opacity-60 flex items-center justify-center no-print z-50 backdrop-blur-sm">
+        <div class="bg-white p-6 rounded-xl shadow-2xl w-[450px] border-t-4 border-blue-500 transform transition-all">
+            <h3 class="text-xl font-black text-gray-800 mb-4">Edit Master Data</h3>
+            <div class="space-y-3">
+                <div><label class="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-1">Item Code (Locked)</label><input type="text" id="edit-code" readonly class="w-full border border-gray-200 p-2 rounded-lg bg-gray-100 text-gray-500 cursor-not-allowed font-mono text-sm"></div>
+                <div><label class="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-1">Item Full Name</label><input type="text" id="edit-name" class="w-full border-2 border-gray-300 p-2.5 rounded-lg outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100 text-sm font-medium"></div>
+                <div class="grid grid-cols-2 gap-3">
+                    <div><label class="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-1">Opening Stock</label><input type="number" id="edit-open" class="w-full border-2 border-gray-300 p-2.5 rounded-lg outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100 text-sm"></div>
+                    <div><label class="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-1">UOM</label><input type="text" id="edit-uom" class="w-full border-2 border-gray-300 p-2.5 rounded-lg outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100 text-sm"></div>
+                </div>
+                <p id="edit-open-warning" class="text-xs font-bold text-red-600 hidden bg-red-50 p-2 rounded border border-red-100"><svg class="w-3 h-3 inline mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"></path></svg> Opening Stock Locked (Logs Exist)</p>
+                <div class="grid grid-cols-2 gap-3">
+                    <div><label class="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-1">Min Alert Level</label><input type="number" id="edit-min" class="w-full border-2 border-gray-300 p-2.5 rounded-lg outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100 text-sm"></div>
+                    <div><label class="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-1">Lead Time (Days)</label><input type="number" id="edit-lead" class="w-full border-2 border-gray-300 p-2.5 rounded-lg outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100 text-sm"></div>
+                </div>
+            </div>
+            <div class="mt-8 flex justify-end gap-3"><button onclick="closeModal('edit-modal')" class="bg-gray-100 border border-gray-300 px-5 py-2 rounded-lg font-bold text-gray-600 hover:bg-gray-200 transition-colors">Cancel</button><button onclick="saveEditItem()" class="bg-blue-700 text-white px-6 py-2 rounded-lg font-bold shadow-md hover:bg-blue-600 transition-all border border-blue-800">Update Record</button></div>
+        </div>
+    </div>
+
+    <div id="print-config-modal" class="hidden fixed inset-0 bg-black bg-opacity-60 flex items-center justify-center no-print z-50 backdrop-blur-sm">
+        <div class="bg-white p-6 rounded-xl shadow-2xl w-[350px] border-t-4 border-purple-500 transform transition-all">
+            <h3 class="text-xl font-black text-gray-800 mb-2">Label Print Engine</h3>
+            <p class="text-xs text-gray-500 mb-6 font-medium">Configure physical sticker dimensions.</p>
+            <div class="grid grid-cols-2 gap-4 mb-8">
+                <div><label class="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-1">Width (cm)</label><input type="number" id="print-width" value="5" class="w-full border-2 border-gray-300 p-3 rounded-lg text-center outline-none focus:border-purple-500 focus:ring-2 focus:ring-purple-100 font-mono text-lg font-bold"></div>
+                <div><label class="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-1">Height (cm)</label><input type="number" id="print-height" value="1.5" step="0.5" class="w-full border-2 border-gray-300 p-3 rounded-lg text-center outline-none focus:border-purple-500 focus:ring-2 focus:ring-purple-100 font-mono text-lg font-bold"></div>
+            </div>
+            <div class="flex justify-end gap-3"><button onclick="closeModal('print-config-modal')" class="bg-gray-100 border border-gray-300 px-5 py-2.5 rounded-lg font-bold text-gray-600 hover:bg-gray-200 transition-colors">Cancel</button><button onclick="executePrint()" class="bg-purple-600 text-white px-6 py-2.5 rounded-lg font-black shadow-md hover:bg-purple-500 transition-all border border-purple-700 flex items-center gap-2"><svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z"></path></svg> Render Batch</button></div>
+        </div>
+    </div>
+
+    <div id="print-area" class="label-grid"></div>
+
+    <script>
         // --- GLOBAL VARIABLES ---
         let tokenClient; let gAccessToken = null; let googleAction = 'login'; 
         let items = JSON.parse(localStorage.getItem('stockItems')) || []; let logs = JSON.parse(localStorage.getItem('stockLogs')) || []; let users = JSON.parse(localStorage.getItem('stockUsers'));
@@ -293,58 +400,25 @@
 
         // --- TAB CLOSE WARNING ---
         window.addEventListener('beforeunload', function (e) {
-            if (activeUser) {
-                e.preventDefault();
-                e.returnValue = 'Changes you made may not be saved! Please use the Logout (Save & Exit) button to sync your data.';
-            }
+            if (activeUser) { e.preventDefault(); e.returnValue = 'Changes may not be saved! Please use the Save & Exit button.'; }
         });
 
-        // --- GOOGLE DRIVE CENTRAL TRAFFIC CONTROLLER ---
+        // --- GOOGLE DRIVE LOGIC ---
         function initGIS() {
             if (GOOGLE_CLIENT_ID === 'YOUR_CLIENT_ID_HERE') return; 
-            tokenClient = google.accounts.oauth2.initTokenClient({
-                client_id: GOOGLE_CLIENT_ID, scope: 'https://www.googleapis.com/auth/drive.file',
-                callback: handleGoogleCallback
-            });
+            tokenClient = google.accounts.oauth2.initTokenClient({ client_id: GOOGLE_CLIENT_ID, scope: 'https://www.googleapis.com/auth/drive.file', callback: handleGoogleCallback });
         }
 
         function updateDriveUIState(isConnected) {
-            const loggedOutDiv = document.getElementById('gdrive-logged-out');
-            const loggedInDiv = document.getElementById('gdrive-logged-in');
-            const statusSpan = document.getElementById('gdrive-status');
-            
-            if (isConnected) {
-                loggedOutDiv.classList.add('hidden');
-                loggedInDiv.classList.remove('hidden');
-                loggedInDiv.classList.add('flex');
-                statusSpan.innerText = 'Connected';
-                statusSpan.className = 'bg-green-100 text-green-800 px-2 py-1 rounded text-xs font-bold';
-            } else {
-                loggedInDiv.classList.add('hidden');
-                loggedInDiv.classList.remove('flex');
-                loggedOutDiv.classList.remove('hidden');
-                statusSpan.innerText = 'Disconnected';
-                statusSpan.className = 'bg-gray-200 text-gray-600 px-2 py-1 rounded text-xs font-bold';
-            }
+            const loggedOutDiv = document.getElementById('gdrive-logged-out'); const loggedInDiv = document.getElementById('gdrive-logged-in'); const statusSpan = document.getElementById('gdrive-status');
+            if (isConnected) { loggedOutDiv.classList.add('hidden'); loggedInDiv.classList.remove('hidden'); loggedInDiv.classList.add('flex'); statusSpan.innerText = 'Connected'; statusSpan.className = 'bg-green-100 text-green-800 border border-green-300 px-3 py-1 rounded-full text-xs font-bold tracking-wide uppercase shadow-sm'; } 
+            else { loggedInDiv.classList.add('hidden'); loggedInDiv.classList.remove('flex'); loggedOutDiv.classList.remove('hidden'); statusSpan.innerText = 'Offline'; statusSpan.className = 'bg-gray-100 border border-gray-300 text-gray-600 px-3 py-1 rounded-full text-xs font-bold tracking-wide uppercase shadow-inner'; }
         }
 
         async function handleGoogleCallback(resp) {
-            if (resp.error) {
-                if(googleAction === 'login_auto_sync') finalizeLogin();
-                if(googleAction === 'save_exit') finalizeLogout(); 
-                return;
-            }
-            gAccessToken = resp.access_token;
-            updateDriveUIState(true);
-
-            if (googleAction === 'manual_restore') { await performCloudRestore(); } 
-            else if (googleAction === 'login_auto_sync') { await performCloudRestore(); finalizeLogin(); } 
-            else if (googleAction === 'save_exit') { 
-                const success = await silentPushToDrive(); 
-                if(!success) alert("Warning: Cloud sync failed. Local data is safely retained on this PC.");
-                finalizeLogout(); 
-            } 
-            else if (googleAction === 'data_tab_connect') { listDriveBackups(); }
+            if (resp.error) { if(googleAction === 'login_auto_sync') finalizeLogin(); if(googleAction === 'save_exit') finalizeLogout(); return; }
+            gAccessToken = resp.access_token; updateDriveUIState(true);
+            if (googleAction === 'manual_restore') { await performCloudRestore(); } else if (googleAction === 'login_auto_sync') { await performCloudRestore(); finalizeLogin(); } else if (googleAction === 'save_exit') { const success = await silentPushToDrive(); if(!success) alert("Warning: Cloud sync failed. Local data safely retained."); finalizeLogout(); } else if (googleAction === 'data_tab_connect') { listDriveBackups(); }
         }
 
         async function performCloudRestore() {
@@ -354,13 +428,8 @@
                 const res = await fetch(`https://www.googleapis.com/drive/v3/files?q=${encodeURIComponent(query)}&orderBy=createdTime desc&pageSize=1&fields=files(id,name)`, { headers: { 'Authorization': 'Bearer ' + gAccessToken } });
                 const data = await res.json();
                 if (data.files && data.files.length > 0) {
-                    const fileId = data.files[0].id;
-                    const dlRes = await fetch(`https://www.googleapis.com/drive/v3/files/${fileId}?alt=media`, { headers: { 'Authorization': 'Bearer ' + gAccessToken } });
-                    const fileData = await dlRes.json();
-                    if(fileData.items && fileData.users) {
-                        items = fileData.items || []; logs = fileData.logs || []; users = fileData.users; saveData();
-                        alert("Success! Restored from cloud backup: " + data.files[0].name);
-                    } else { alert("Error: File is not a valid StockManager backup."); }
+                    const fileId = data.files[0].id; const dlRes = await fetch(`https://www.googleapis.com/drive/v3/files/${fileId}?alt=media`, { headers: { 'Authorization': 'Bearer ' + gAccessToken } }); const fileData = await dlRes.json();
+                    if(fileData.items && fileData.users) { items = fileData.items || []; logs = fileData.logs || []; users = fileData.users; saveData(); alert("Success! Restored from cloud backup: " + data.files[0].name); } else { alert("Error: File is not a valid StockManager backup."); }
                 } else { alert("No recent backups found on this Google account."); }
             } catch(e) { alert("Error communicating with Google Drive."); }
         }
@@ -371,21 +440,17 @@
             const u = document.getElementById('login-user').value.trim(); const p = document.getElementById('login-pass').value; const err = document.getElementById('login-error');
             const user = users.find(x => x.name.toLowerCase() === u.toLowerCase() && x.pass === p);
             if(user) {
-                activeUser = user;
-                const autoSync = document.getElementById('auto-sync-cb').checked;
+                activeUser = user; const autoSync = document.getElementById('auto-sync-cb').checked;
                 if (autoSync) {
                     if (GOOGLE_CLIENT_ID === 'YOUR_CLIENT_ID_HERE') { finalizeLogin(); return; }
-                    googleAction = 'login_auto_sync';
-                    const btn = document.getElementById('btn-login-main');
-                    btn.innerText = "Syncing..."; btn.disabled = true;
-                    tokenClient.requestAccessToken({prompt: ''}); 
+                    googleAction = 'login_auto_sync'; const btn = document.getElementById('btn-login-main'); btn.innerText = "Syncing Cloud..."; btn.disabled = true; tokenClient.requestAccessToken({prompt: ''}); 
                 } else { finalizeLogin(); }
-            } else { err.innerText = "Invalid Login"; err.classList.remove('hidden'); }
+            } else { err.innerText = "Invalid Credentials"; err.classList.remove('hidden'); }
         }
 
         function finalizeLogin() {
             sessionStorage.setItem('activeStockSession', JSON.stringify(activeUser)); 
-            document.getElementById('login-error').classList.add('hidden'); document.getElementById('login-screen').classList.add('hidden'); document.getElementById('app-wrapper').classList.remove('hidden'); document.getElementById('nav-user-badge').innerText = `${activeUser.name} [${activeUser.role}]`; document.getElementById('login-pass').value = ''; document.getElementById('btn-login-main').innerText = "Log In"; document.getElementById('btn-login-main').disabled = false;
+            document.getElementById('login-error').classList.add('hidden'); document.getElementById('login-screen').classList.add('hidden'); document.getElementById('app-wrapper').classList.remove('hidden'); document.getElementById('app-wrapper').classList.add('flex'); document.getElementById('nav-user-badge').innerText = `${activeUser.name} [${activeUser.role}]`; document.getElementById('login-pass').value = ''; document.getElementById('btn-login-main').innerText = "Log In"; document.getElementById('btn-login-main').disabled = false;
             applyPermissions(); switchView('dashboard'); renderUsersTable();
         }
 
@@ -393,40 +458,74 @@
         function triggerManualDataConnect() { if (GOOGLE_CLIENT_ID === 'YOUR_CLIENT_ID_HERE') return alert("Insert Client ID first."); googleAction = 'data_tab_connect'; tokenClient.requestAccessToken({prompt: 'consent'}); }
 
         async function saveAndExit() {
-            const btn = document.getElementById('btn-save-exit'); 
-            const autoSync = document.getElementById('auto-sync-cb') ? document.getElementById('auto-sync-cb').checked : true;
-            
-            btn.innerText = "Syncing...";
-            
-            if (GOOGLE_CLIENT_ID !== 'YOUR_CLIENT_ID_HERE') {
-                googleAction = 'save_exit';
-                tokenClient.requestAccessToken({prompt: ''}); 
-            } else { 
-                finalizeLogout(); 
-            }
+            const btn = document.getElementById('btn-save-exit'); const autoSync = document.getElementById('auto-sync-cb') ? document.getElementById('auto-sync-cb').checked : true;
+            btn.innerHTML = `<svg class="animate-spin -ml-1 mr-2 h-4 w-4 text-white inline" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>Syncing...`;
+            if (GOOGLE_CLIENT_ID !== 'YOUR_CLIENT_ID_HERE') { googleAction = 'save_exit'; tokenClient.requestAccessToken({prompt: ''}); } else { finalizeLogout(); }
         }
 
         async function silentPushToDrive() {
             if (!gAccessToken) return false;
-            const backupData = { items, logs, users }; const fileBlob = new Blob([JSON.stringify(backupData)], {type: 'application/json'});
-            const metadata = { name: `StockBackup_${new Date().toISOString().replace(/[:.]/g, '-')}.json`, mimeType: 'application/json' };
-            const form = new FormData(); form.append('metadata', new Blob([JSON.stringify(metadata)], {type: 'application/json'})); form.append('file', fileBlob);
+            const backupData = { items, logs, users }; const fileBlob = new Blob([JSON.stringify(backupData)], {type: 'application/json'}); const metadata = { name: `StockBackup_${new Date().toISOString().replace(/[:.]/g, '-')}.json`, mimeType: 'application/json' }; const form = new FormData(); form.append('metadata', new Blob([JSON.stringify(metadata)], {type: 'application/json'})); form.append('file', fileBlob);
             try { const res = await fetch('https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart', { method: 'POST', headers: { 'Authorization': 'Bearer ' + gAccessToken }, body: form }); return res.ok; } catch (e) { return false; }
         }
 
         function finalizeLogout() {
             activeUser = null; sessionStorage.removeItem('activeStockSession'); 
-            document.getElementById('app-wrapper').classList.add('hidden'); document.getElementById('login-screen').classList.remove('hidden'); document.getElementById('btn-save-exit').innerText = "Save & Exit";
+            document.getElementById('app-wrapper').classList.add('hidden'); document.getElementById('app-wrapper').classList.remove('flex'); document.getElementById('login-screen').classList.remove('hidden'); document.getElementById('btn-save-exit').innerHTML = `<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1"></path></svg> Save & Exit`;
             if(gAccessToken) handleSignoutClick(); 
         }
 
-        function handleSignoutClick() {
-            if (gAccessToken) { 
-                google.accounts.oauth2.revoke(gAccessToken, () => { 
-                    gAccessToken = null; 
-                    updateDriveUIState(false);
-                }); 
+        function handleSignoutClick() { if (gAccessToken) { google.accounts.oauth2.revoke(gAccessToken, () => { gAccessToken = null; updateDriveUIState(false); }); } }
+
+        async function pushToDrive(event) {
+            if (!gAccessToken) return alert("Not connected.");
+            const btn = event ? event.target : document.getElementById('btn-manual-push'); const originalText = btn.innerHTML; btn.innerHTML = "Uploading..."; btn.disabled = true;
+            const success = await silentPushToDrive();
+            if(success) { btn.innerHTML = "Push Successful!"; btn.classList.replace('bg-blue-600', 'bg-green-600'); listDriveBackups(); } else { alert("Upload failed."); }
+            setTimeout(() => { btn.innerHTML = originalText; btn.classList.replace('bg-green-600', 'bg-blue-600'); btn.disabled = false; }, 2000);
+        }
+
+        async function listDriveBackups() {
+            if (!gAccessToken) return;
+            const listEl = document.getElementById('drive-backup-list'); listEl.innerHTML = '<li class="p-4 text-center text-gray-400 text-xs font-bold tracking-widest uppercase animate-pulse">Loading archives...</li>';
+            const pastDate = new Date(Date.now() - 48 * 60 * 60 * 1000).toISOString(); const query = `trashed=false and name contains 'StockBackup_' and createdTime > '${pastDate}'`;
+            try {
+                const res = await fetch(`https://www.googleapis.com/drive/v3/files?q=${encodeURIComponent(query)}&orderBy=createdTime desc&fields=files(id,name,createdTime)`, { headers: { 'Authorization': 'Bearer ' + gAccessToken } });
+                const data = await res.json();
+                if (data.files && data.files.length > 0) { listEl.innerHTML = data.files.map(f => `<li class="p-3 flex justify-between items-center text-sm hover:bg-gray-50 transition-colors"><span class="truncate pr-2 font-mono text-gray-700" title="${f.name}">${new Date(f.createdTime).toLocaleString()}</span><button onclick="pullFromDrive('${f.id}')" class="text-blue-700 hover:text-blue-900 hover:bg-blue-100 font-bold shrink-0 bg-blue-50 px-3 py-1 rounded-lg border border-blue-200 shadow-sm transition-all text-xs">Restore</button></li>`).join(''); } else { listEl.innerHTML = '<li class="p-4 text-center text-gray-500 text-xs font-medium">No archives found in last 48 hours.</li>'; }
+            } catch(e) { listEl.innerHTML = '<li class="p-4 text-center text-red-500 text-xs font-bold">Failed to connect to Drive.</li>'; }
+        }
+
+        async function pullFromDrive(fileId) {
+            if (!confirm("WARNING: Overwriting local database with selected cloud snapshot. Proceed?")) return;
+            try {
+                const res = await fetch(`https://www.googleapis.com/drive/v3/files/${fileId}?alt=media`, { headers: { 'Authorization': 'Bearer ' + gAccessToken } });
+                if (res.ok) { const data = await res.json(); if(data.items && data.users) { items = data.items || []; logs = data.logs || []; users = data.users; saveData(); alert("Restore Complete! Session expired for security."); finalizeLogout(); } else { alert("Invalid backup structure."); } } else { alert("Network payload failed."); }
+            } catch(e) { alert("Download connection error."); }
+        }
+
+        // --- CORE UI & LOGIC ---
+        function switchView(id) { 
+            // Hide all views
+            document.querySelectorAll('.view-section').forEach(el => el.classList.add('hidden')); 
+            // Show target view
+            document.getElementById('view-' + id).classList.remove('hidden'); 
+            
+            // Update Active Nav Button Styling
+            document.querySelectorAll('.nav-btn').forEach(btn => {
+                btn.classList.remove('bg-white', 'text-blue-900', 'shadow-md', 'pointer-events-none');
+                btn.classList.add('bg-blue-800', 'text-blue-100');
+            });
+            const activeBtn = document.getElementById('nav-' + id);
+            if(activeBtn) {
+                activeBtn.classList.remove('bg-blue-800', 'text-blue-100');
+                activeBtn.classList.add('bg-white', 'text-blue-900', 'shadow-md', 'pointer-events-none');
             }
+
+            if(id === 'dashboard') updateDashboard(); 
+            if(id === 'master') renderMasterTable(); 
+            if(id === 'logs') renderLogsTable(); 
+            if(id === 'scan') { document.getElementById('scanner-input').value = ''; document.getElementById('scanner-input').focus(); document.getElementById('scan-anim-box').classList.remove('border-blue-500', 'bg-blue-50'); document.getElementById('scan-anim-box').classList.add('border-gray-300', 'bg-gray-50'); } 
         }
 
         function filterTable(inputId, tableId) {
@@ -441,89 +540,83 @@
             }
         }
 
-        async function pushToDrive(event) {
-            if (!gAccessToken) return alert("Not connected.");
-            const btn = event ? event.target : document.getElementById('btn-manual-push'); const originalText = btn.innerText; btn.innerText = "Uploading..."; btn.disabled = true;
-            const success = await silentPushToDrive();
-            if(success) { btn.innerText = "Success!"; btn.classList.replace('bg-green-600', 'bg-blue-600'); listDriveBackups(); } else { alert("Upload failed."); }
-            setTimeout(() => { btn.innerText = originalText; btn.classList.replace('bg-blue-600', 'bg-green-600'); btn.disabled = false; }, 2000);
-        }
-
-        async function listDriveBackups() {
-            if (!gAccessToken) return;
-            const listEl = document.getElementById('drive-backup-list'); listEl.innerHTML = '<li class="p-2 text-center text-gray-500 text-xs">Loading backups...</li>';
-            const pastDate = new Date(Date.now() - 48 * 60 * 60 * 1000).toISOString(); const query = `trashed=false and name contains 'StockBackup_' and createdTime > '${pastDate}'`;
-            try {
-                const res = await fetch(`https://www.googleapis.com/drive/v3/files?q=${encodeURIComponent(query)}&orderBy=createdTime desc&fields=files(id,name,createdTime)`, { headers: { 'Authorization': 'Bearer ' + gAccessToken } });
-                const data = await res.json();
-                if (data.files && data.files.length > 0) { listEl.innerHTML = data.files.map(f => `<li class="p-2 flex justify-between items-center text-xs"><span class="truncate pr-2 font-mono" title="${f.name}">${new Date(f.createdTime).toLocaleString()}</span><button onclick="pullFromDrive('${f.id}')" class="text-blue-600 hover:text-blue-800 font-bold shrink-0 bg-blue-50 px-2 py-1 rounded border shadow-sm">Restore</button></li>`).join(''); } else { listEl.innerHTML = '<li class="p-2 text-center text-gray-500 text-xs">No backups found in last 48 hours.</li>'; }
-            } catch(e) { listEl.innerHTML = '<li class="p-2 text-center text-red-500 text-xs">Failed to load backups.</li>'; }
-        }
-
-        async function pullFromDrive(fileId) {
-            if (!confirm("WARNING: Instantly overwrite local data with cloud backup?")) return;
-            try {
-                const res = await fetch(`https://www.googleapis.com/drive/v3/files/${fileId}?alt=media`, { headers: { 'Authorization': 'Bearer ' + gAccessToken } });
-                if (res.ok) { const data = await res.json(); if(data.items && data.users) { items = data.items || []; logs = data.logs || []; users = data.users; saveData(); alert("Restored! Logging out."); finalizeLogout(); } else { alert("Invalid backup."); } } else { alert("Failed to download."); }
-            } catch(e) { alert("Download error."); }
-        }
-
-        function checkSession() { const s = sessionStorage.getItem('activeStockSession'); if (s) { activeUser = JSON.parse(s); document.getElementById('login-screen').classList.add('hidden'); document.getElementById('app-wrapper').classList.remove('hidden'); document.getElementById('nav-user-badge').innerText = `${activeUser.name} [${activeUser.role}]`; applyPermissions(); switchView('dashboard'); renderUsersTable(); } }
+        function checkSession() { const s = sessionStorage.getItem('activeStockSession'); if (s) { activeUser = JSON.parse(s); document.getElementById('login-screen').classList.add('hidden'); document.getElementById('app-wrapper').classList.remove('hidden'); document.getElementById('app-wrapper').classList.add('flex'); document.getElementById('nav-user-badge').innerText = `${activeUser.name} [${activeUser.role}]`; applyPermissions(); switchView('dashboard'); renderUsersTable(); } }
         function applyPermissions() { document.querySelectorAll('.admin-only').forEach(el => activeUser.role === 'Staff' ? el.classList.add('hidden-for-staff') : el.classList.remove('hidden-for-staff')); }
         function addUser() { const n = document.getElementById('new-user-name').value.trim(); const p = document.getElementById('new-user-pass').value; const r = document.getElementById('new-user-role').value; if(!n || !p) return alert("Empty fields."); if(users.some(u => u.name.toLowerCase() === n.toLowerCase())) return alert("Username taken."); users.push({name: n, role: r, pass: p}); saveData(); document.getElementById('new-user-name').value = ''; document.getElementById('new-user-pass').value = ''; renderUsersTable(); }
-        function renderUsersTable() { document.getElementById('users-table-body').innerHTML = users.map((u, i) => `<tr class="border-b hover:bg-gray-50"><td class="p-2 font-bold">${u.name}</td><td class="p-2">${u.role}</td><td class="p-2 text-gray-400 font-mono text-xs">${u.pass}</td><td class="p-2"><button onclick="deleteUser(${i})" class="text-red-500 hover:underline text-xs font-bold">Delete</button></td></tr>`).join(''); }
-        function deleteUser(i) { if(users.length === 1) return alert("Cannot delete last admin."); if(users[i].name === activeUser.name) return alert("Cannot delete self."); if(confirm("Delete user?")) { users.splice(i, 1); saveData(); renderUsersTable(); } }
+        function renderUsersTable() { document.getElementById('users-table-body').innerHTML = users.map((u, i) => `<tr class="border-b border-gray-100 hover:bg-blue-50 even:bg-gray-50 transition-colors"><td class="p-4 font-bold text-gray-800">${u.name}</td><td class="p-4"><span class="px-2 py-1 rounded-lg text-xs font-bold ${u.role==='Admin'?'bg-purple-100 text-purple-800':'bg-gray-200 text-gray-700'}">${u.role}</span></td><td class="p-4 text-gray-400 font-mono text-xs hidden-pass">${u.pass.replace(/./g, '*')}</td><td class="p-4 text-right"><button onclick="deleteUser(${i})" class="text-red-500 hover:text-red-700 hover:bg-red-50 px-3 py-1 rounded transition-colors text-xs font-bold border border-transparent hover:border-red-200">Revoke</button></td></tr>`).join(''); }
+        function deleteUser(i) { if(users.length === 1) return alert("Cannot delete last admin."); if(users[i].name === activeUser.name) return alert("Cannot delete self."); if(confirm(`Revoke access for ${users[i].name}?`)) { users.splice(i, 1); saveData(); renderUsersTable(); } }
         function saveData() { localStorage.setItem('stockItems', JSON.stringify(items)); localStorage.setItem('stockLogs', JSON.stringify(logs)); localStorage.setItem('stockUsers', JSON.stringify(users)); if(activeUser) updateDashboard(); }
         function calculateCurrentStock(c) { let item = items.find(i => i.code === c); if (!item) return 0; let s = parseInt(item.openStock); logs.filter(l => l.code === c).forEach(l => { if (l.type === 'IN') s += parseInt(l.qty); if (l.type === 'OUT') s -= parseInt(l.qty); }); return s; }
 
-        function updateDashboard() { const tb = document.getElementById('dashboard-table-body'); const ll = document.getElementById('low-stock-list'); const ul = document.getElementById('urgent-list'); tb.innerHTML = ''; ll.innerHTML = ''; ul.innerHTML = ''; items.forEach(i => { const cur = calculateCurrentStock(i.code); const min = parseInt(i.minStock); const low = cur <= min; const uom = i.uom || ''; tb.innerHTML += `<tr class="border-b hover:bg-gray-50"><td class="p-3 font-mono">${i.code}</td><td class="p-3 font-bold">${i.name}</td><td class="p-3 font-bold text-lg">${cur} <span class="text-xs text-gray-500 font-normal">${uom}</span></td><td class="p-3">${low ? '<span class="text-red-600 font-bold bg-red-100 px-2 rounded">LOW</span>' : '<span class="text-green-700 bg-green-100 px-2 rounded">OK</span>'}</td></tr>`; if (low) { ll.innerHTML += `<li><b>${i.name}</b> (${i.code}) - Stock: ${cur} ${uom} (Min: ${min})</li>`; if (parseInt(i.leadTime) > 5) ul.innerHTML += `<li><b>${i.name}</b> - Required: <span class="bg-red-200 text-red-800 px-1 rounded font-bold">${Math.ceil((min * 1.2) - cur)} ${uom}</span></li>`; } }); filterTable('search-dashboard', 'dashboard-table-body'); }
-        function addItem() { const c = document.getElementById('new-code').value.trim(); if(!c || items.some(i => i.code === c)) return alert("Invalid code."); items.push({code: c, name: document.getElementById('new-name').value, uom: document.getElementById('new-uom').value || 'Nos', openStock: document.getElementById('new-open').value||0, minStock: document.getElementById('new-min').value||0, leadTime: document.getElementById('new-lead').value||0}); saveData(); renderMasterTable(); document.querySelectorAll('input[id^="new-"]').forEach(i => i.value = ''); }
-        function renderMasterTable() { document.getElementById('master-table-body').innerHTML = items.map((i, idx) => `<tr class="border-b hover:bg-gray-50"><td class="p-2 text-center"><input type="checkbox" class="print-cb" value="${i.code}"></td><td class="p-2 font-mono">${i.code}</td><td class="p-2 font-bold">${i.name}</td><td class="p-2 text-gray-500 text-xs">${i.uom || '-'}</td><td class="p-2">${i.openStock}</td><td class="p-2">${i.minStock}</td><td class="p-2">${i.leadTime}</td><td class="p-2 text-center space-x-2"><button onclick="openEditModal('${i.code}')" class="text-blue-600 font-bold">Edit</button></td></tr>`).join(''); filterTable('search-master', 'master-table-body'); }
-        function deleteSelectedItems() { const s = Array.from(document.querySelectorAll('.print-cb:checked')).map(cb => cb.value); if(s.length === 0) return alert("Select at least one item."); if(confirm(`Delete ${s.length} item(s)? Logs will remain.`)) { items = items.filter(i => !s.includes(i.code)); saveData(); renderMasterTable(); } }
-        function openEditModal(c) { const i = items.find(x => x.code === c); const h = logs.some(l => l.code === c); document.getElementById('edit-code').value = i.code; document.getElementById('edit-name').value = i.name; document.getElementById('edit-uom').value = i.uom || ''; document.getElementById('edit-min').value = i.minStock; document.getElementById('edit-lead').value = i.leadTime; const oInput = document.getElementById('edit-open'); oInput.value = i.openStock; if(h) { oInput.readOnly = true; oInput.classList.add('bg-gray-100'); document.getElementById('edit-open-warning').classList.remove('hidden'); } else { oInput.readOnly = false; oInput.classList.remove('bg-gray-100'); document.getElementById('edit-open-warning').classList.add('hidden'); } document.getElementById('edit-modal').classList.remove('hidden'); }
+        function updateDashboard() { 
+            const tb = document.getElementById('dashboard-table-body'); const ll = document.getElementById('low-stock-list'); const ul = document.getElementById('urgent-list'); 
+            tb.innerHTML = ''; ll.innerHTML = ''; ul.innerHTML = ''; 
+            let lowCount = 0; let urgCount = 0;
+            
+            items.forEach(i => { 
+                const cur = calculateCurrentStock(i.code); const min = parseInt(i.minStock); const low = cur <= min; const uom = i.uom || ''; 
+                tb.innerHTML += `<tr class="border-b border-gray-100 hover:bg-blue-50 even:bg-gray-50 transition-colors"><td class="p-4 font-mono text-gray-600">${i.code}</td><td class="p-4 font-bold text-gray-800">${i.name}</td><td class="p-4 font-black text-xl text-gray-700">${cur} <span class="text-xs text-gray-500 font-bold uppercase">${uom}</span></td><td class="p-4">${low ? '<span class="text-red-700 font-bold bg-red-100 border border-red-200 px-3 py-1 rounded-full text-xs tracking-wide">RESTOCK</span>' : '<span class="text-green-700 bg-green-100 border border-green-200 px-3 py-1 rounded-full font-bold text-xs tracking-wide">HEALTHY</span>'}</td></tr>`; 
+                if (low) { 
+                    lowCount++;
+                    ll.innerHTML += `<li class="flex justify-between items-center py-1 border-b border-yellow-100 last:border-0"><span class="truncate pr-2 font-semibold"><b>${i.name}</b> <span class="font-mono text-xs text-yellow-600">(${i.code})</span></span><span class="shrink-0 font-black">${cur}/${min}</span></li>`; 
+                    if (parseInt(i.leadTime) > 5) {
+                        urgCount++;
+                        ul.innerHTML += `<li class="flex justify-between items-center py-1 border-b border-red-100 last:border-0"><span class="truncate pr-2 font-semibold"><b>${i.name}</b></span><span class="shrink-0 bg-red-100 border border-red-200 px-2 rounded font-black text-red-800 text-xs py-0.5">Need: ${Math.ceil((min * 1.2) - cur)}</span></li>`; 
+                    }
+                } 
+            }); 
+            
+            document.getElementById('low-count').innerText = lowCount;
+            document.getElementById('urgent-count').innerText = urgCount;
+            filterTable('search-dashboard', 'dashboard-table-body'); 
+        }
+        
+        function addItem() { const c = document.getElementById('new-code').value.trim(); if(!c || items.some(i => i.code === c)) return alert("Code missing or duplicates existing item."); items.push({code: c, name: document.getElementById('new-name').value, uom: document.getElementById('new-uom').value || 'Nos', openStock: document.getElementById('new-open').value||0, minStock: document.getElementById('new-min').value||0, leadTime: document.getElementById('new-lead').value||0}); saveData(); renderMasterTable(); document.querySelectorAll('input[id^="new-"]').forEach(i => i.value = ''); }
+        
+        function renderMasterTable() { 
+            document.getElementById('master-table-body').innerHTML = items.map((i, idx) => `<tr class="border-b border-gray-100 hover:bg-blue-50 even:bg-gray-50 transition-colors"><td class="p-3 text-center"><input type="checkbox" class="print-cb w-4 h-4 rounded cursor-pointer accent-blue-500" value="${i.code}"></td><td class="p-3 font-mono text-gray-600">${i.code}</td><td class="p-3 font-bold text-gray-800">${i.name}</td><td class="p-3 text-gray-500 text-xs font-bold uppercase">${i.uom || '-'}</td><td class="p-3 font-medium">${i.openStock}</td><td class="p-3 font-medium">${i.minStock}</td><td class="p-3 font-medium">${i.leadTime}</td><td class="p-3 text-center"><button onclick="openEditModal('${i.code}')" class="text-blue-600 hover:text-blue-800 bg-blue-50 hover:bg-blue-100 border border-blue-200 px-3 py-1 rounded shadow-sm text-xs font-bold transition-colors">Edit Config</button></td></tr>`).join(''); 
+            filterTable('search-master', 'master-table-body'); 
+        }
+        
+        function deleteSelectedItems() { const s = Array.from(document.querySelectorAll('.print-cb:checked')).map(cb => cb.value); if(s.length === 0) return alert("Select target records via checkbox."); if(confirm(`Permanently drop ${s.length} item(s) from Master List? Historical logs will be orphaned but retained.`)) { items = items.filter(i => !s.includes(i.code)); saveData(); renderMasterTable(); document.getElementById('search-master').value=''; } }
+        
+        function openEditModal(c) { const i = items.find(x => x.code === c); const h = logs.some(l => l.code === c); document.getElementById('edit-code').value = i.code; document.getElementById('edit-name').value = i.name; document.getElementById('edit-uom').value = i.uom || ''; document.getElementById('edit-min').value = i.minStock; document.getElementById('edit-lead').value = i.leadTime; const oInput = document.getElementById('edit-open'); oInput.value = i.openStock; if(h) { oInput.readOnly = true; oInput.classList.add('bg-gray-100'); document.getElementById('edit-open-warning').classList.remove('hidden'); document.getElementById('edit-open-warning').classList.add('block'); } else { oInput.readOnly = false; oInput.classList.remove('bg-gray-100'); document.getElementById('edit-open-warning').classList.add('hidden'); document.getElementById('edit-open-warning').classList.remove('block'); } document.getElementById('edit-modal').classList.remove('hidden'); }
         function saveEditItem() { const c = document.getElementById('edit-code').value; let idx = items.findIndex(x => x.code === c); if(idx > -1) { items[idx].name = document.getElementById('edit-name').value; items[idx].uom = document.getElementById('edit-uom').value || 'Nos'; items[idx].minStock = document.getElementById('edit-min').value; items[idx].leadTime = document.getElementById('edit-lead').value; if(!document.getElementById('edit-open').readOnly) items[idx].openStock = document.getElementById('edit-open').value; saveData(); renderMasterTable(); closeModal('edit-modal'); } }
 
-        function handleScan(e) { if (e.key === 'Enter') { const c = e.target.value.trim(); e.target.value = ''; activeScanItem = items.find(i => i.code === c); if (!activeScanItem) { document.getElementById('scan-error').innerText = "Unrecognised."; document.getElementById('scan-error').classList.remove('hidden'); return; } document.getElementById('scan-dialog').classList.remove('hidden'); document.getElementById('scan-item-name').innerText = activeScanItem.name; document.getElementById('scan-item-code').innerText = activeScanItem.code; document.getElementById('scan-uom-display').innerText = activeScanItem.uom || ''; document.getElementById('scan-uom-label').innerText = activeScanItem.uom || ''; document.getElementById('scan-current-stock').innerText = calculateCurrentStock(c); document.getElementById('scan-qty').value = 1; document.getElementById('scan-error').classList.add('hidden'); } }
-        function submitLog() { const t = document.querySelector('input[name="scanType"]:checked').value; const q = parseInt(document.getElementById('scan-qty').value); const c = calculateCurrentStock(activeScanItem.code); if (t === 'OUT' && q > c) return alert(`Insufficient.`); logs.push({timestamp: new Date().toLocaleString(), user: activeUser.name, code: activeScanItem.code, name: activeScanItem.name, uom: activeScanItem.uom || '-', type: t, qty: q}); saveData(); document.getElementById('scan-dialog').classList.add('hidden'); document.getElementById('scanner-input').focus(); }
-        function openManualLogModal() { document.getElementById('manual-item-select').innerHTML = items.map(i => `<option value="${i.code}">${i.name} - ${calculateCurrentStock(i.code)} ${i.uom||''}</option>`).join(''); document.getElementById('manual-log-modal').classList.remove('hidden'); }
+        function handleScan(e) { 
+            if (e.key === 'Enter') { 
+                const c = e.target.value.trim(); e.target.value = ''; activeScanItem = items.find(i => i.code === c); 
+                const animBox = document.getElementById('scan-anim-box');
+                if (!activeScanItem) { 
+                    animBox.classList.add('border-red-500', 'bg-red-50'); setTimeout(()=>{ animBox.classList.remove('border-red-500', 'bg-red-50'); }, 500);
+                    document.getElementById('scan-error').innerText = "Barcode unrecognised by Master Database."; document.getElementById('scan-error').classList.remove('hidden'); 
+                    return; 
+                } 
+                animBox.classList.add('border-green-500', 'bg-green-50');
+                document.getElementById('scan-dialog').classList.remove('hidden'); document.getElementById('scan-item-name').innerText = activeScanItem.name; document.getElementById('scan-item-code').innerText = activeScanItem.code; document.getElementById('scan-uom-display').innerText = activeScanItem.uom || ''; document.getElementById('scan-uom-label').innerText = activeScanItem.uom || ''; document.getElementById('scan-current-stock').innerText = calculateCurrentStock(c); document.getElementById('scan-qty').value = 1; document.getElementById('scan-error').classList.add('hidden'); 
+            } 
+        }
+        
+        function submitLog() { const t = document.querySelector('input[name="scanType"]:checked').value; const q = parseInt(document.getElementById('scan-qty').value); const c = calculateCurrentStock(activeScanItem.code); if (t === 'OUT' && q > c) return alert(`Stock Deficit. Rejection triggered.`); logs.push({timestamp: new Date().toLocaleString(), user: activeUser.name, code: activeScanItem.code, name: activeScanItem.name, uom: activeScanItem.uom || '-', type: t, qty: q}); saveData(); document.getElementById('scan-dialog').classList.add('hidden'); document.getElementById('scanner-input').focus(); document.getElementById('scan-anim-box').classList.remove('border-green-500', 'bg-green-50'); }
+        function openManualLogModal() { document.getElementById('manual-item-select').innerHTML = items.map(i => `<option value="${i.code}">${i.name} - Current: ${calculateCurrentStock(i.code)} ${i.uom||''}</option>`).join(''); document.getElementById('manual-log-modal').classList.remove('hidden'); }
         function submitManualLog() { const c = document.getElementById('manual-item-select').value; const i = items.find(x => x.code === c); const t = document.getElementById('manual-type-select').value; const q = parseInt(document.getElementById('manual-qty').value); logs.push({ timestamp: new Date().toLocaleString() + " [MANUAL]", user: activeUser.name, code: i.code, name: i.name, uom: i.uom || '-', type: t, qty: q }); saveData(); renderLogsTable(); closeModal('manual-log-modal'); }
-        function renderLogsTable() { document.getElementById('logs-table-body').innerHTML = [...logs].reverse().map(l => `<tr class="border-b hover:bg-gray-50"><td class="p-2 text-xs text-gray-500">${l.timestamp}</td><td class="p-2 font-bold">${l.user}</td><td class="p-2 font-mono">${l.code}</td><td class="p-2 font-bold">${l.name || '-'}</td><td class="p-2 font-bold ${l.type==='IN'?'text-green-700':'text-red-600'}">${l.type}</td><td class="p-2 font-bold">${l.qty}</td><td class="p-2 text-xs text-gray-500">${l.uom || '-'}</td></tr>`).join(''); filterTable('search-logs', 'logs-table-body'); }
+        function renderLogsTable() { document.getElementById('logs-table-body').innerHTML = [...logs].reverse().map(l => `<tr class="border-b border-gray-100 hover:bg-blue-50 even:bg-gray-50 transition-colors"><td class="p-3 text-xs text-gray-500 font-mono tracking-tighter">${l.timestamp}</td><td class="p-3 font-bold text-gray-700">${l.user}</td><td class="p-3 font-mono text-gray-500">${l.code}</td><td class="p-3 font-bold text-gray-800">${l.name || '-'}</td><td class="p-3"><span class="font-black px-2 py-0.5 rounded text-xs tracking-wider ${l.type==='IN'?'text-green-800 bg-green-200 border border-green-300':'text-red-800 bg-red-200 border border-red-300'}">${l.type}</span></td><td class="p-3 font-black text-lg text-gray-700">${l.qty}</td><td class="p-3 text-xs text-gray-500 font-bold uppercase">${l.uom || '-'}</td></tr>`).join(''); filterTable('search-logs', 'logs-table-body'); }
 
-        function switchView(id) { document.querySelectorAll('.view-section').forEach(el => el.classList.add('hidden')); document.getElementById('view-' + id).classList.remove('hidden'); if(id === 'dashboard') updateDashboard(); if(id === 'master') renderMasterTable(); if(id === 'logs') renderLogsTable(); if(id === 'scan') { document.getElementById('scanner-input').value = ''; document.getElementById('scanner-input').focus(); } }
         function closeModal(id) { document.getElementById(id).classList.add('hidden'); }
         function toggleAllCheckboxes(m) { document.querySelectorAll('.print-cb').forEach(cb => cb.checked = m.checked); }
 
-        function exportCSV(t) { let d = t === 'master' ? items.map(i => ({"Item Code": i.code, "Item Name": i.name, "UOM": i.uom || '-', "Open": i.openStock, "Min": i.minStock, "Lead": i.leadTime, "Closing": calculateCurrentStock(i.code)})) : logs.map(l => ({"Date": l.timestamp, "User": l.user, "Code": l.code, "Name": l.name || '-', "Type": l.type, "Qty": l.qty, "UOM": l.uom || '-'})); if (!d.length) return alert("No data."); const k = Object.keys(d[0]); const c = "data:text/csv;charset=utf-8," + k.join(",") + "\n" + d.map(r => k.map(x => `"${r[x]}"`).join(",")).join("\n"); const l = document.createElement("a"); l.href = encodeURI(c); l.download = `store_${t}_${new Date().toISOString().split('T')[0]}.csv`; document.body.appendChild(l); l.click(); }
+        function exportCSV(t) { let d = t === 'master' ? items.map(i => ({"Item Code": i.code, "Item Name": i.name, "UOM": i.uom || '-', "Open": i.openStock, "Min": i.minStock, "Lead": i.leadTime, "Closing": calculateCurrentStock(i.code)})) : logs.map(l => ({"Date": l.timestamp, "User": l.user, "Code": l.code, "Name": l.name || '-', "Type": l.type, "Qty": l.qty, "UOM": l.uom || '-'})); if (!d.length) return alert("No payload available."); const k = Object.keys(d[0]); const c = "data:text/csv;charset=utf-8," + k.join(",") + "\n" + d.map(r => k.map(x => `"${r[x]}"`).join(",")).join("\n"); const l = document.createElement("a"); l.href = encodeURI(c); l.download = `store_${t}_${new Date().toISOString().split('T')[0]}.csv`; document.body.appendChild(l); l.click(); }
         function exportLocalJSON() { const l = document.createElement("a"); l.href = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify({items, logs, users})); l.download = `inventory_backup_${new Date().toISOString().split('T')[0]}.json`; document.body.appendChild(l); l.click(); }
-        function importLocalJSON(e) { const r = new FileReader(); r.onload = evt => { try { const d = JSON.parse(evt.target.result); items = d.items || []; logs = d.logs || []; users = d.users; saveData(); alert("Restored! Logging out."); finalizeLogout(); } catch(err) { alert("Invalid."); } }; if(e.target.files[0]) r.readAsText(e.target.files[0]); }
-        function openPrintModal() { if(document.querySelectorAll('.print-cb:checked').length === 0) return alert("Select item."); document.getElementById('print-config-modal').classList.remove('hidden'); }
+        function importLocalJSON(e) { const r = new FileReader(); r.onload = evt => { try { const d = JSON.parse(evt.target.result); items = d.items || []; logs = d.logs || []; users = d.users; saveData(); alert("Restored! Session expired for security."); finalizeLogout(); } catch(err) { alert("Invalid schema."); } }; if(e.target.files[0]) r.readAsText(e.target.files[0]); }
+        function openPrintModal() { if(document.querySelectorAll('.print-cb:checked').length === 0) return alert("Select specific items for print rendering."); document.getElementById('print-config-modal').classList.remove('hidden'); }
         
-        // --- FACTORY RESET ---
-        function factoryReset() {
-            if(confirm("WARNING: This will delete ALL Items, Logs, and Users from this device.\nYou cannot undo this without a PC Backup file.\n\nDo you want to proceed?")) {
-                const check = prompt("Type 'RESET' to confirm deletion of all data:");
-                if (check === "RESET") {
-                    localStorage.clear();
-                    sessionStorage.clear();
-                    alert("System Data Wiped Successfully. Returning to Login.");
-                    location.reload();
-                } else {
-                    alert("Factory Reset cancelled.");
-                }
-            }
-        }
-        
-        // --- QR CODE PRINT ENGINE (SIDE-BY-SIDE LAYOUT) ---
+        function factoryReset() { if(confirm("WARNING: Annihilates all operational data. No undo.\nProceed?")) { if(prompt("Type 'RESET' to authorize override:") === "RESET") { localStorage.clear(); sessionStorage.clear(); alert("Wiped. Returning to zero state."); location.reload(); } } }
+
         function executePrint() {
-            let w = parseFloat(document.getElementById('print-width').value); 
-            let h = parseFloat(document.getElementById('print-height').value); 
-            if(w < 4) w = 4; if(w > 10) w = 10; if(h < 1.5) h = 1.5;
-            
-            const s = Array.from(document.querySelectorAll('.print-cb:checked')).map(cb => cb.value); 
-            const iToP = items.filter(i => s.includes(i.code));
+            let w = parseFloat(document.getElementById('print-width').value); let h = parseFloat(document.getElementById('print-height').value); if(w < 4) w = 4; if(w > 10) w = 10; if(h < 1.5) h = 1.5;
+            const s = Array.from(document.querySelectorAll('.print-cb:checked')).map(cb => cb.value); const iToP = items.filter(i => s.includes(i.code));
             
             const printArea = document.getElementById('print-area');
-            
             const qrPxSize = Math.floor((h * 37.8) - 10);
             
             printArea.innerHTML = iToP.map((i, idx) => `
@@ -537,21 +630,10 @@
             
             setTimeout(() => { 
                 iToP.forEach((i, idx) => { 
-                    new QRCode(document.getElementById(`qr-${idx}`), {
-                        text: i.code,
-                        width: qrPxSize,
-                        height: qrPxSize,
-                        colorDark : "#000000",
-                        colorLight : "#ffffff",
-                        correctLevel : QRCode.CorrectLevel.M
-                    });
+                    new QRCode(document.getElementById(`qr-${idx}`), { text: i.code, width: qrPxSize, height: qrPxSize, colorDark : "#000000", colorLight : "#ffffff", correctLevel : QRCode.CorrectLevel.M });
                 }); 
                 closeModal('print-config-modal'); 
-                
-                setTimeout(() => { 
-                    window.print(); 
-                    setTimeout(() => { printArea.innerHTML = ''; }, 1000);
-                }, 500); 
+                setTimeout(() => { window.print(); setTimeout(() => { printArea.innerHTML = ''; }, 1000); }, 500); 
             }, 100);
         }
 
